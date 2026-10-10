@@ -32,3 +32,41 @@ metrics:
     type_params:
       numerator: revenue
       denominator: sessions
+
+  # Count-distinct metrics. They are not additive across days or segments, so the RCA engine
+  # handles them with mergeable HyperLogLog sketches. `rca.distinct_entity` names the entity
+  # whose key the measure counts, which is what the sketches hash.
+  - name: active_customers
+    label: Active customers
+    type: simple
+    type_params:
+      measure: active_customer_count
+    config:
+      meta:
+        rca:
+          distinct_entity: customer
+
+  - name: buyers
+    label: Buyers
+    type: simple
+    type_params:
+      measure: buyer_count
+    config:
+      meta:
+        rca:
+          distinct_entity: customer
+
+  - name: buyer_rate
+    label: Buyer rate
+    description: Share of active customers who bought.
+    type: ratio
+    type_params:
+      numerator: buyers
+      denominator: active_customers
+
+  - name: sessions_per_customer
+    label: Sessions per customer
+    type: ratio
+    type_params:
+      numerator: sessions
+      denominator: active_customers

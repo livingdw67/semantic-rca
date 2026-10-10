@@ -1,0 +1,103 @@
+{
+  "metric": "active_customers",
+  "current": [
+    "2026-10-02",
+    "2026-10-08"
+  ],
+  "baseline": [
+    "2026-09-04",
+    "2026-10-01"
+  ],
+  "actual": 30239.0,
+  "expected": 31901.766384480805,
+  "naive": 31872.5,
+  "anomaly_pct": -0.05212145197357121,
+  "naive_pct": -0.051251078515962,
+  "z": -7.825909868006918,
+  "p": 5.039983396237865e-15,
+  "causes": [
+    {
+      "segment": "channel=email (excluding channel=email & country=DE)",
+      "share_of_anomaly": 0.5124866992053317,
+      "ci": [
+        0.5417650657180197,
+        0.48320833269264374
+      ],
+      "mechanism": "level"
+    },
+    {
+      "segment": "channel=email & country=DE",
+      "share_of_anomaly": 0.1390268948324465,
+      "ci": [
+        0.1579819716493619,
+        0.12007181801553111
+      ],
+      "mechanism": "level"
+    },
+    {
+      "segment": "channel=paid_search",
+      "share_of_anomaly": 0.11311540482065766,
+      "ci": [
+        0.15730904414764688,
+        0.0689217654936684
+      ],
+      "mechanism": "level"
+    },
+    {
+      "segment": "channel=organic",
+      "share_of_anomaly": 0.09648878127823603,
+      "ci": [
+        0.144478202244676,
+        0.048499360311796025
+      ],
+      "mechanism": "level"
+    },
+    {
+      "segment": "channel=referral",
+      "share_of_anomaly": 0.07857363391465172,
+      "ci": [
+        0.11249860861336236,
+        0.04464865921594108
+      ],
+      "mechanism": "level"
+    },
+    {
+      "segment": "channel=tiktok",
+      "share_of_anomaly": 0.0603085859486771,
+      "ci": [
+        0.08681922690613225,
+        0.03379794499122195
+      ],
+      "mechanism": "level"
+    }
+  ],
+  "rejected": [
+    {
+      "segment": "channel=email & region=EU",
+      "reason": "slice of channel=email: the rest of it moves the same way (107% of the per-unit effect)"
+    },
+    {
+      "segment": "channel=paid_search & country=US",
+      "reason": "slice of channel=paid_search: the rest of it moves the same way (143% of the per-unit effect)"
+    },
+    {
+      "segment": "channel=tiktok & region=NA",
+      "reason": "slice of channel=tiktok: the rest of it moves the same way (84% of the per-unit effect)"
+    },
+    {
+      "segment": "channel=tiktok & screen_size=screen_size_01",
+      "reason": "slice of channel=tiktok: the rest of it moves the same way (284% of the per-unit effect)"
+    },
+    {
+      "segment": "ab_bucket=ab_bucket_01 & region=EU",
+      "reason": "no unique contribution given the others (LOO -0% of anomaly, CI -0%..-0%)"
+    },
+    {
+      "segment": "device=tablet",
+      "reason": "no unique contribution given the others (LOO -0% of anomaly, CI -0%..-0%)"
+    }
+  ],
+  "residual_share": -8.616623287367928e-16,
+  "statements": 11,
+  "seconds": 99.31355130003067
+}

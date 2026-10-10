@@ -1,11 +1,15 @@
-"""End-to-end: run the engine through MetricFlow and score it against the planted ground truth.
+"""End-to-end: run the staged pipeline through MetricFlow and score it against the planted ground
+truth. Requires the warehouse:
 
-Requires the warehouse: python scripts/generate_data.py && dbt build --profiles-dir .
+    python scripts/generate_data.py && dbt build --profiles-dir .
 """
 
+import dataclasses
+import datetime as dt
 import json
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,6 +17,7 @@ pytestmark = pytest.mark.skipif(
     not (ROOT / "rca.duckdb").exists() or not (ROOT / "target" / "semantic_manifest.json").exists(),
     reason="warehouse not built",
 )
+QUIET_END = dt.date(2026, 9, 24)
 
 
 @pytest.fixture(scope="module")
@@ -27,56 +32,146 @@ def truth():
     return json.loads((ROOT / "data" / "ground_truth.json").read_text())
 
 
-def _segments(result):
-    from rca.semantic_client import pretty_dimension
+@pytest.fixture(scope="module")
+def runs(sl):
+    from rca.pipeline import run_rca
 
-    return [{pretty_dimension(k): v for k, v in c.dims} for c in result.causes]
+    cache = {}
 
+    def get(metric, **kw):
+        key = (metric, tuple(sorted(kw.items())))
+        if key not in cache:
+            cache[key] = run_rca(sl, metric, **kw)
+        return cache[key]
 
-def test_discovers_joined_dimensions(sl):
-    dims = sl.categorical_dimensions("conversion_rate")
-    assert "customer__customer_tier" in dims  # only reachable via the customer entity join
-    assert "session__platform" in dims
-
-
-def test_ratio_metric_resolved_from_manifest(sl):
-    shape = sl.metric_shape("conversion_rate")
-    assert (shape.kind, shape.numerator, shape.denominator) == ("ratio", "orders", "sessions")
+    return get
 
 
-@pytest.mark.parametrize("metric", ["conversion_rate", "revenue_per_session", "revenue", "orders"])
-def test_recovers_planted_causes(sl, truth, metric):
-    from rca.engine import run_rca
-
-    result = run_rca(sl, metric)
-    found = _segments(result)
-    expected = [c["segment"] for c in truth["causes"]]
-    canon = lambda segs: sorted(str(sorted(s.items())) for s in segs)  # noqa: E731
-    assert canon(found) == canon(expected), found
-    assert str(result.detection.current[0]) == truth["incident_window"][0]
-    assert result.residual_p > 0.05
+def segment(label: str) -> dict:
+    """'country=DE & platform=ios = region=..' -> {'country': 'DE', 'platform': 'ios'}"""
+    first = label.split(" = ")[0].split(" (excluding")[0]
+    return dict(part.split("=", 1) for part in first.split(" & "))
 
 
-def test_rate_vs_mix_labels(sl, truth):
-    from rca.engine import run_rca
+def canon(seg: dict) -> str:
+    return str(sorted(seg.items()))
 
-    result = run_rca(sl, "conversion_rate")
-    labels = {str(sorted(_segments_one(c).items())): c.driver for c in result.causes}
+
+def found(result) -> dict[str, object]:
+    return {canon(segment(c.label)): c for c in result.attribution.accepted}
+
+
+# --------------------------------------------------------------------------- planner
+@pytest.mark.parametrize("metric", ["conversion_rate", "buyer_rate"])
+def test_planner_matches_metricflow(sl, metric):
+    """GROUPING SETS over MetricFlow's compiled SQL == MetricFlow queried directly."""
+    import pandas as pd
+
+    from rca.attribution import window_totals
+    from rca.planner import SlicePlanner, Windows
+
+    shape = sl.metric_shape(metric)
+    w = Windows.ending(dt.date(2026, 10, 8), 7, 28, weekly=shape.has_distinct)
+    sets = [frozenset({"session__platform"}), frozenset({"session__platform", "session__country"}),
+            frozenset({"customer__customer_tier"})]
+    got = SlicePlanner(sl, shape, w).fetch(sets)
+    for s in sets:
+        keys = sorted(s)
+        if shape.has_distinct:
+            parts = []
+            for b in range(w.n_baseline + 1):
+                hi = w.end - dt.timedelta(days=7 * b)
+                df = sl.query(shape.base_metrics, group_by=keys, start=hi - dt.timedelta(days=6), end=hi, by_day=False)
+                parts.append(df.assign(b=b))
+            df = pd.concat(parts)
+            names = {shape.numerator: "n", shape.denominator: "d"}
+            ref = (df[df.b > 0].groupby(keys)[shape.base_metrics].sum().rename(columns=lambda c: names[c] + "0")
+                   .join(df[df.b == 0].groupby(keys)[shape.base_metrics].sum().rename(columns=lambda c: names[c] + "1"))
+                   .reset_index())
+        else:
+            daily = sl.query(shape.base_metrics, group_by=keys, start=w.start, end=w.end)
+            ref = window_totals(daily, keys, shape.numerator, shape.denominator, w.baseline, w.current)
+        mine = got[s].sort_values(keys).reset_index(drop=True)
+        ref = ref.sort_values(keys).reset_index(drop=True)
+        for col in ("n0", "n1", "d0", "d1"):
+            assert np.allclose(mine[col], ref[col]), (s, col)
+
+
+# --------------------------------------------------------------------------- recall + precision
+@pytest.mark.parametrize("metric", ["conversion_rate", "orders", "revenue_per_session", "buyer_rate"])
+def test_recovers_all_planted_causes(runs, truth, metric):
+    result = runs(metric)
+    expected = {canon(c["segment"]) for c in truth["causes"]}
+    assert set(found(result)) == expected, [c.label for c in result.attribution.accepted]
+
+
+def test_revenue_recovers_the_three_strong_causes(runs, truth):
+    """Raw revenue is heavy-tailed: the offsetting iOS-US effect (about -13% of the anomaly) does
+    not clear the multiple-testing bar there, and must be reported as considered, not dropped."""
+    result = runs("revenue")
+    accepted = set(found(result))
+    strong = {canon(c["segment"]) for c in truth["causes"] if c["direction"] == "down"}
+    assert strong <= accepted
+    assert accepted <= strong | {canon({"platform": "ios", "country": "US"})}
+    considered = {canon(segment(c.label)) for c in result.attribution.candidates}
+    assert canon({"platform": "ios", "country": "US"}) in considered
+
+
+def test_mechanisms_and_directions(runs, truth):
+    result = runs("conversion_rate")
+    by_seg = found(result)
     for cause in truth["causes"]:
-        assert labels[str(sorted(cause["segment"].items()))] == cause["type"]
+        c = by_seg[canon(cause["segment"])]
+        assert c.driver() == cause["type"], (c.label, c.phi_by_effect)
+        explains_drop = c.phi / result.attribution.anomaly > 0
+        assert explains_drop == (cause["direction"] == "down"), c.label
 
 
-def _segments_one(c):
-    from rca.semantic_client import pretty_dimension
+def test_equivalent_dimensions_are_reported_not_suppressed(runs):
+    result = runs("conversion_rate")
+    assert result.crawl.aliases["session__country"] == ["session__storefront"]
+    us = found(result)[canon({"platform": "ios", "country": "US"})]
+    assert "region=NA" in us.label  # region=NA describes the same rows as country=US here
 
-    return {pretty_dimension(k): v for k, v in c.dims}
+
+def test_screening(runs):
+    screened = runs("conversion_rate").crawl.screened
+    assert set(screened) == {"session__landing_page_id", "session__is_test_traffic", "session__sample_bucket"}
 
 
-def test_quiet_period_reports_no_cause(sl):
-    """Before the incident nothing happened. The engine should say so, not invent a story."""
-    import datetime as dt
+def test_quiet_week_reports_nothing(runs):
+    result = runs("conversion_rate", current_end=QUIET_END)
+    assert not result.detection.is_anomalous
+    assert result.attribution.accepted == []
 
-    from rca.engine import run_rca
 
-    result = run_rca(sl, "conversion_rate", current_end=dt.date(2026, 9, 24))
-    assert result.causes == []
+# --------------------------------------------------------------------------- budget + baselines
+@pytest.mark.parametrize("metric", ["conversion_rate", "orders", "revenue"])
+def test_statement_budget(runs, metric):
+    """28 dimensions, depth 3: the exhaustive engine needs ~500 queries per round."""
+    assert runs(metric).queries_run <= 12
+
+
+def test_forecast_sees_payday_in_the_window(runs):
+    det = runs("conversion_rate").detection
+    assert det.method == "forecast"
+    assert det.expected_pct > 0.01  # Oct 2-3 are paydays
+    assert det.anomaly_pct < det.naive_pct  # so the naive comparison understates the incident
+
+
+def test_screen_sample_mode_finds_the_same_causes(sl, truth):
+    from rca.crawl import CrawlConfig
+    from rca.pipeline import PipelineConfig, run_rca
+
+    cfg = dataclasses.replace(PipelineConfig(), crawl=dataclasses.replace(CrawlConfig(), screen_sample=0.2))
+    result = run_rca(sl, "conversion_rate", config=cfg)
+    assert set(found(result)) == {canon(c["segment"]) for c in truth["causes"]}
+    assert any(s["purpose"] == "stage 2: sample screen" for s in result.statements)
+
+
+@pytest.mark.slow
+def test_exhaustive_oracle_runs(sl):
+    from rca.exhaustive import run_rca as run_exhaustive
+
+    result = run_exhaustive(sl, "conversion_rate", depth=2, max_causes=2)
+    assert result.queries_run > 100

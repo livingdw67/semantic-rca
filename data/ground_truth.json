@@ -10,14 +10,48 @@
         "country": "DE"
       },
       "type": "rate",
-      "description": "Conversion multiplied by 0.1"
+      "direction": "down"
     },
     {
       "segment": {
         "channel": "email"
       },
       "type": "mix",
-      "description": "Traffic multiplied by 0.5"
+      "direction": "down"
+    },
+    {
+      "segment": {
+        "platform": "android",
+        "country": "US",
+        "channel": "paid_search"
+      },
+      "type": "rate",
+      "direction": "down"
+    },
+    {
+      "segment": {
+        "platform": "ios",
+        "country": "US"
+      },
+      "type": "rate",
+      "direction": "up"
     }
+  ],
+  "equivalent_dimensions": [
+    [
+      "country",
+      "storefront"
+    ]
+  ],
+  "decoys": [
+    "unity_day (DE, Oct 2-4)",
+    "payday (Oct 2-3)",
+    "weekly seasonality",
+    "growth trend"
+  ],
+  "screen_out": [
+    "landing_page_id",
+    "is_test_traffic",
+    "sample_bucket"
   ]
 }

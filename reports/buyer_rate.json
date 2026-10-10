@@ -1,0 +1,65 @@
+{
+  "metric": "buyer_rate",
+  "current": [
+    "2026-10-02",
+    "2026-10-08"
+  ],
+  "baseline": [
+    "2026-09-04",
+    "2026-10-01"
+  ],
+  "actual": 0.07364661529812494,
+  "expected": 0.0899547135248863,
+  "naive": 0.08783433994823123,
+  "anomaly_pct": -0.18129231462951267,
+  "naive_pct": -0.16152822072174056,
+  "z": -9.534443970423222,
+  "p": 1.506909139784359e-21,
+  "causes": [
+    {
+      "segment": "channel=email",
+      "share_of_anomaly": 0.6809022577411908,
+      "ci": [
+        0.7334854143846601,
+        0.6283191010977217
+      ],
+      "mechanism": "level"
+    },
+    {
+      "segment": "country=DE & platform=ios",
+      "share_of_anomaly": 0.4433082435580329,
+      "ci": [
+        0.46864643860170674,
+        0.41797004851435904
+      ],
+      "mechanism": "level"
+    },
+    {
+      "segment": "country=US & platform=ios = platform=ios & region=NA",
+      "share_of_anomaly": -0.2466300536593285,
+      "ci": [
+        -0.1678585497793806,
+        -0.3254015575392764
+      ],
+      "mechanism": "level"
+    },
+    {
+      "segment": "channel=paid_search & country=US & platform=android = channel=paid_search & platform=android & region=NA",
+      "share_of_anomaly": 0.14404901433859904,
+      "ci": [
+        0.15653466455548126,
+        0.1315633641217168
+      ],
+      "mechanism": "level"
+    }
+  ],
+  "rejected": [
+    {
+      "segment": "app_version=ios_7.2 & country=US = app_version=ios_7.2 & region=NA",
+      "reason": "slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (144% of the per-unit effect)"
+    }
+  ],
+  "residual_share": -0.021629461978494316,
+  "statements": 9,
+  "seconds": 63.54553519998444
+}

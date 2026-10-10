@@ -1,0 +1,93 @@
+{
+  "metric": "revenue_per_session",
+  "current": [
+    "2026-10-02",
+    "2026-10-08"
+  ],
+  "baseline": [
+    "2026-09-04",
+    "2026-10-01"
+  ],
+  "actual": 3.6242875695407246,
+  "expected": 4.287052055998706,
+  "naive": 4.1635246989739345,
+  "anomaly_pct": -0.15459679000878956,
+  "naive_pct": -0.12951457441001857,
+  "z": -6.148828116029942,
+  "p": 7.805751170385889e-10,
+  "causes": [
+    {
+      "segment": "channel=email",
+      "share_of_anomaly": 0.6702269007793336,
+      "ci": [
+        0.886467310712356,
+        0.2476377804025082
+      ],
+      "mechanism": "mix (traffic share): rate +21%, volume +46%"
+    },
+    {
+      "segment": "country=DE & platform=ios",
+      "share_of_anomaly": 0.5563581375244411,
+      "ci": [
+        0.6500170235403526,
+        0.34237004856229675
+      ],
+      "mechanism": "rate: rate +53%, volume +2%"
+    },
+    {
+      "segment": "country=US & platform=ios = platform=ios & region=NA",
+      "share_of_anomaly": -0.3589670560648336,
+      "ci": [
+        -0.10976746304481871,
+        -0.58320312926756
+      ],
+      "mechanism": "rate: rate -42%, volume +6%"
+    },
+    {
+      "segment": "channel=paid_search & country=US & platform=android = channel=paid_search & platform=android & region=NA",
+      "share_of_anomaly": 0.12178752866364538,
+      "ci": [
+        0.18064445513041735,
+        0.07117289903097739
+      ],
+      "mechanism": "rate: rate +12%, volume +0%"
+    }
+  ],
+  "rejected": [
+    {
+      "segment": "customer_tier=pro & app_version=ios_7.2 & region=EU",
+      "reason": "no unique contribution given the others (LOO -1% of anomaly, CI -11%..+9%)"
+    },
+    {
+      "segment": "customer_tier=pro & platform=ios",
+      "reason": "loose superset of customer_tier=pro & app_version=ios_7.2 & region=EU: the rest of it has no significant effect (-200% of the per-unit effect)"
+    },
+    {
+      "segment": "customer_tier=pro & payment_method=payment_method_02 & app_version=web",
+      "reason": "no unique contribution given the others (LOO +1% of anomaly, CI -7%..+9%)"
+    },
+    {
+      "segment": "customer_tier=pro & app_version=web & channel=paid_search",
+      "reason": "no unique contribution given the others (LOO +17% of anomaly, CI -15%..+49%)"
+    },
+    {
+      "segment": "customer_tier=pro & app_version=web & browser_family=browser_family_01",
+      "reason": "no unique contribution given the others (LOO -1% of anomaly, CI -2%..+0%)"
+    },
+    {
+      "segment": "customer_tier=pro & app_version=web & os_locale=os_locale_07",
+      "reason": "no unique contribution given the others (LOO -0% of anomaly, CI -1%..+0%)"
+    },
+    {
+      "segment": "customer_tier=pro & app_version=ios_7.1 & hour_band=hour_band_01",
+      "reason": "no unique contribution given the others (LOO +6% of anomaly, CI -3%..+15%)"
+    },
+    {
+      "segment": "customer_tier=pro & app_version=web & hour_band=hour_band_01",
+      "reason": "no unique contribution given the others (LOO +11% of anomaly, CI -16%..+39%)"
+    }
+  ],
+  "residual_share": 0.010594489097413584,
+  "statements": 10,
+  "seconds": 28.106557700026315
+}

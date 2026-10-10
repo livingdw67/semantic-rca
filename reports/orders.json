@@ -1,0 +1,81 @@
+{
+  "metric": "orders",
+  "current": [
+    "2026-10-02",
+    "2026-10-08"
+  ],
+  "baseline": [
+    "2026-09-04",
+    "2026-10-01"
+  ],
+  "actual": 327.57142857142856,
+  "expected": 419.1752784114057,
+  "naive": 415.2857142857143,
+  "anomaly_pct": -0.2185335217934089,
+  "naive_pct": -0.21121431028551774,
+  "z": -9.461230821979107,
+  "p": 3.0433945109939103e-21,
+  "causes": [
+    {
+      "segment": "channel=email",
+      "share_of_anomaly": 0.7045757354389615,
+      "ci": [
+        0.8385594026160137,
+        0.5376178005808556
+      ],
+      "mechanism": "level"
+    },
+    {
+      "segment": "country=DE & platform=ios",
+      "share_of_anomaly": 0.28268960752853206,
+      "ci": [
+        0.3422129855600834,
+        0.20131048538151308
+      ],
+      "mechanism": "level"
+    },
+    {
+      "segment": "country=US & platform=ios = platform=ios & region=NA",
+      "share_of_anomaly": -0.15552986683168024,
+      "ci": [
+        -0.007960117771889907,
+        -0.2666208583411195
+      ],
+      "mechanism": "level"
+    },
+    {
+      "segment": "channel=paid_search & country=US & platform=android = channel=paid_search & platform=android & region=NA",
+      "share_of_anomaly": 0.10219333259440168,
+      "ci": [
+        0.12608234379570574,
+        0.07859480617856707
+      ],
+      "mechanism": "level"
+    }
+  ],
+  "rejected": [
+    {
+      "segment": "channel=email & region=EU",
+      "reason": "slice of channel=email: the rest of it moves the same way (86% of the per-unit effect)"
+    },
+    {
+      "segment": "platform=ios & region=EU",
+      "reason": "loose superset of country=DE & platform=ios: the rest of it has no significant effect (1% of the per-unit effect)"
+    },
+    {
+      "segment": "channel=organic & country=US & platform=ios = channel=organic & platform=ios & region=NA",
+      "reason": "slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (85% of the per-unit effect)"
+    },
+    {
+      "segment": "app_version=ios_7.2 & country=US = app_version=ios_7.2 & region=NA",
+      "reason": "slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (214% of the per-unit effect)"
+    },
+    {
+      "segment": "app_version=android_5.5 & channel=paid_search & country=US = app_version=android_5.5 & channel=paid_search & region=NA",
+      "reason": "slice of channel=paid_search & country=US & platform=android = channel=paid_search & platform=android & region=NA: the rest of it moves the same way (91% of the per-unit effect)"
+    }
+  ],
+  "residual_share": 0.06607119126978504,
+  "statements": 8,
+  "seconds": 20.267418599978555
+}

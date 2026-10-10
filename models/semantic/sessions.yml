@@ -16,15 +16,55 @@ semantic_models:
         type: time
         type_params:
           time_granularity: day
+      - name: sample_bucket
+        type: categorical
+        description: Deterministic hash(session_id) % 1000, for sampled screening
+        config:
+          meta:
+            rca: exclude
       - name: platform
         type: categorical
         description: ios / android / web
       - name: country
         type: categorical
+      - name: region
+        type: categorical
+        description: Coarser hierarchy over country
+      - name: storefront
+        type: categorical
+        description: One storefront per country (1:1 alias of country)
       - name: channel
         type: categorical
-        description: Marketing acquisition channel of the session
+        description: Marketing acquisition channel
       - name: device
+        type: categorical
+      - name: app_version
+        type: categorical
+        description: Nested inside platform
+      - name: landing_page_id
+        type: categorical
+        description: High-cardinality identifier
+      - name: is_test_traffic
+        type: categorical
+      - name: ab_bucket
+        type: categorical
+      - name: experiment_arm
+        type: categorical
+      - name: network_type
+        type: categorical
+      - name: referrer_domain
+        type: categorical
+      - name: ad_creative
+        type: categorical
+      - name: hour_band
+        type: categorical
+      - name: screen_size
+        type: categorical
+      - name: utm_content
+        type: categorical
+      - name: browser_family
+        type: categorical
+      - name: os_locale
         type: categorical
     measures:
       - name: session_count
@@ -36,6 +76,14 @@ semantic_models:
       - name: revenue_amount
         agg: sum
         expr: revenue
+      - name: active_customer_count
+        description: Distinct customers with at least one session.
+        agg: count_distinct
+        expr: customer_id
+      - name: buyer_count
+        description: Distinct customers with at least one converting session.
+        agg: count_distinct
+        expr: case when converted = 1 then customer_id end
 
   - name: customers
     description: Customer attributes, joinable to sessions through the customer entity.
@@ -48,4 +96,24 @@ semantic_models:
       - name: customer_tier
         type: categorical
       - name: signup_cohort
+        type: categorical
+      - name: acquisition_source
+        type: categorical
+      - name: loyalty_band
+        type: categorical
+      - name: age_band
+        type: categorical
+      - name: email_opt_in
+        type: categorical
+      - name: score_decile
+        type: categorical
+      - name: preferred_category
+        type: categorical
+      - name: household_size
+        type: categorical
+      - name: crm_cluster
+        type: categorical
+      - name: nps_band
+        type: categorical
+      - name: payment_method
         type: categorical

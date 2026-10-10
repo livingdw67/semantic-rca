@@ -155,6 +155,9 @@ class Cause:
     score: float = 0.0
     evidence_p: float = float("nan")
     refined_from: list[tuple[tuple[str, str], ...]] = field(default_factory=list)
+    equivalents: list[tuple[tuple[str, str], ...]] = field(default_factory=list)
+    z: float = float("nan")
+    raw: dict = field(default_factory=dict)
 
     @property
     def driver(self) -> str:

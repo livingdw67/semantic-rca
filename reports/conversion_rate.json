@@ -1,0 +1,93 @@
+{
+  "metric": "conversion_rate",
+  "current": [
+    "2026-10-02",
+    "2026-10-08"
+  ],
+  "baseline": [
+    "2026-09-04",
+    "2026-10-01"
+  ],
+  "actual": 0.04024148400343974,
+  "expected": 0.04681823005387667,
+  "naive": 0.04539988443097875,
+  "anomaly_pct": -0.14047404275788844,
+  "naive_pct": -0.11362144402330576,
+  "z": -6.426928661546545,
+  "p": 1.3020788863843361e-10,
+  "causes": [
+    {
+      "segment": "channel=email",
+      "share_of_anomaly": 0.5910975884851406,
+      "ci": [
+        0.8013044190699238,
+        0.40246052511933117
+      ],
+      "mechanism": "mix (traffic share): rate +14%, volume +45%"
+    },
+    {
+      "segment": "country=DE & platform=ios",
+      "share_of_anomaly": 0.4503760012111606,
+      "ci": [
+        0.5583532706795453,
+        0.30089491090481874
+      ],
+      "mechanism": "rate: rate +44%, volume +1%"
+    },
+    {
+      "segment": "country=US & platform=ios = platform=ios & region=NA",
+      "share_of_anomaly": -0.32186633324601965,
+      "ci": [
+        -0.12005931074360943,
+        -0.5127372700540508
+      ],
+      "mechanism": "rate: rate -40%, volume +8%"
+    },
+    {
+      "segment": "channel=paid_search & country=US & platform=android = channel=paid_search & platform=android & region=NA",
+      "share_of_anomaly": 0.1753150950460583,
+      "ci": [
+        0.21735138252333736,
+        0.13125415919713876
+      ],
+      "mechanism": "rate: rate +17%, volume +0%"
+    }
+  ],
+  "rejected": [
+    {
+      "segment": "platform=ios & region=EU",
+      "reason": "loose superset of country=DE & platform=ios: the rest of it has no significant effect (5% of the per-unit effect)"
+    },
+    {
+      "segment": "app_version=ios_7.2 & country=US = app_version=ios_7.2 & region=NA",
+      "reason": "slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (144% of the per-unit effect)"
+    },
+    {
+      "segment": "app_version=ios_7.1 & country=US = app_version=ios_7.1 & region=NA",
+      "reason": "slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (70% of the per-unit effect)"
+    },
+    {
+      "segment": "ab_bucket=ab_bucket_01 & channel=organic",
+      "reason": "no unique contribution given the others (LOO -4% of anomaly, CI -17%..+9%)"
+    },
+    {
+      "segment": "channel=organic & country=US = channel=organic & region=NA",
+      "reason": "no unique contribution given the others (LOO +3% of anomaly, CI -4%..+10%)"
+    },
+    {
+      "segment": "household_size=household_size_02 & country=US = household_size=household_size_02 & region=NA",
+      "reason": "no unique contribution given the others (LOO -2% of anomaly, CI -6%..+2%)"
+    },
+    {
+      "segment": "browser_family=browser_family_01 & country=US & platform=android",
+      "reason": "no unique contribution given the others (LOO +1% of anomaly, CI -0%..+3%)"
+    },
+    {
+      "segment": "preferred_category=preferred_category_09 & country=US = preferred_category=preferred_category_09 & region=NA",
+      "reason": "no unique contribution given the others (LOO -1% of anomaly, CI -3%..+2%)"
+    }
+  ],
+  "residual_share": 0.10507764850365997,
+  "statements": 8,
+  "seconds": 21.511850200011395
+}

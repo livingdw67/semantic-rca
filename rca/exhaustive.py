@@ -1,4 +1,7 @@
-"""Orchestration: detect the anomaly, crawl the semantic graph, attribute, explain."""
+"""Legacy exhaustive engine (the oracle): crawl every dimension and pair, peel causes greedily.
+
+Kept for comparison and recall tests. The staged pipeline in rca/pipeline.py replaces it.
+"""
 
 from __future__ import annotations
 
