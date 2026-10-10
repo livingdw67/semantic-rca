@@ -27,7 +27,7 @@ v1 worked on a toy dataset but had four structural limits. v2 fixes each one:
 
 | # | Problem in v1 | v2 |
 |---|---|---|
-| 1 | **Query explosion**: one query per dimension and per pair, repeated for every cause found (~500 per round at 30 dimensions) | A **SlicePlanner** compiles governed SQL with MetricFlow, wraps it in `GROUPING SETS`, and batches; a **staged crawl** (screen, marginals, beam search, heredity closure) needs **8-10 statements** in total |
+| 1 | **Query explosion**: one query per dimension and per pair, repeated for every cause found (~500 per round at 30 dimensions) | A **SlicePlanner** compiles governed SQL with MetricFlow, wraps it in `GROUPING SETS`, and batches; a **staged crawl** (screen, marginals, beam search, heredity closure) needs **8-11 statements** in total |
 | 2 | Count-distinct metrics rejected | **HyperLogLog sketches** built in SQL and merged client-side; exact `COUNT(DISTINCT)` for screening |
 | 3 | Naive "last 7 vs previous 28 days" | A **robust seasonal forecast** (trend, weekday, monthly payday, holidays, AR(1) noise) sets the expected value, the anomaly size and the noise floor |
 | 4 | Greedy peeling: the first correlated segment took all the credit | **Joint attribution**: counterfactual game on a flag cube, nesting and leave-one-out cleanup, **Owen values** with bootstrap CIs |
@@ -63,7 +63,7 @@ The **crawl** keeps the statement count flat as dimensions grow:
 
 - **Stage 0 screen** (1 statement). Drops IDs (`landing_page_id`, 2,500 values), near-constants
   (`is_test_traffic`) and anything tagged `meta: {rca: exclude}`.
-- **Stage 1 marginals** (1 statement for all 28 dimensions). Collapses exact aliases:
+- **Stage 1 marginals** (1 statement for all 29 screened dimensions). Collapses exact aliases:
   `storefront` is 1:1 with `country`, so it's reported, not crawled twice.
 - **Scoring by surplus.** Surplus is a segment's share of the change minus its share of volume. A
   slice that is 57% of traffic and carries 63% of the drop is unremarkable. Surplus is z-tested
@@ -169,7 +169,7 @@ in the week of Oct 2-8 and a set of decoys (`scripts/generate_data.py`, `data/gr
 | `conversion_rate`, quiet week (Sep 18-24) | ratio | -0.7% | -0.2% (p=0.92) | none, correctly | none | 3 | 2s |
 
 **Revenue** misses the offsetting iOS-US effect *by design of the statistics*. Raw revenue is
-heavy-tailed, and that effect's unique contribution (about −13% of the anomaly) doesn't clear the
+heavy-tailed, and that effect's unique contribution (about −12% of the anomaly, CI −33%..+8%) doesn't clear the
 multiple-testing bar there. The report lists it under "considered and rejected" with its estimate
 and CI. The same effect is significant in revenue per session, where the ratio damps the noise.
 
@@ -212,8 +212,8 @@ Example reports, with the statement trace and the wrapped SQL, are in [`reports/
 - **The HLL estimator** is the original estimator with linear counting. HLL++ bias tables are not
   implemented, so sets of ~40k-80k carry about 1% bias, in the same direction for actual and
   counterfactual.
-- **Runtime.** Count-distinct metrics take 1-4 minutes locally because exact `COUNT(DISTINCT)` at
-  entity grain dominates. Additive metrics take about 20-60 s, mostly in DuckDB.
+- **Runtime.** Count-distinct metrics take 1-2 minutes locally because exact `COUNT(DISTINCT)` at
+  entity grain dominates. Additive metrics take about 20-30 s, mostly in DuckDB.
 - **Recall is bounded by the crawl.** A cause whose dimensions never become implicated, and whose
   cells are below the noise floor, won't be proposed. Attribution can only judge candidates it is
   given.
