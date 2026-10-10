@@ -1,0 +1,12 @@
+name: semantic_rca
+version: "1.0.0"
+config-version: 2
+profile: semantic_rca
+
+model-paths: ["models"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  semantic_rca:
+    +materialized: table

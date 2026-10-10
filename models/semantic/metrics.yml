@@ -1,0 +1,34 @@
+metrics:
+  - name: sessions
+    label: Sessions
+    type: simple
+    type_params:
+      measure: session_count
+
+  - name: orders
+    label: Orders
+    type: simple
+    type_params:
+      measure: order_count
+
+  - name: revenue
+    label: Revenue
+    description: Gross order revenue (USD).
+    type: simple
+    type_params:
+      measure: revenue_amount
+
+  - name: conversion_rate
+    label: Conversion rate
+    description: Orders per session.
+    type: ratio
+    type_params:
+      numerator: orders
+      denominator: sessions
+
+  - name: revenue_per_session
+    label: Revenue per session
+    type: ratio
+    type_params:
+      numerator: revenue
+      denominator: sessions

@@ -1,0 +1,23 @@
+{
+  "incident_window": [
+    "2026-10-02",
+    "2026-10-08"
+  ],
+  "causes": [
+    {
+      "segment": {
+        "platform": "ios",
+        "country": "DE"
+      },
+      "type": "rate",
+      "description": "Conversion multiplied by 0.1"
+    },
+    {
+      "segment": {
+        "channel": "email"
+      },
+      "type": "mix",
+      "description": "Traffic multiplied by 0.5"
+    }
+  ]
+}

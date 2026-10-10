@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: metricflow_time_spine
+    description: Daily date spine required by MetricFlow.
+    time_spine:
+      standard_granularity_column: date_day
+    columns:
+      - name: date_day
+        granularity: day
+
+  - name: fct_sessions
+    description: One row per session.
+    columns:
+      - name: session_id
+        data_tests: [unique, not_null]
+      - name: customer_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_customers')
+                field: customer_id
+
+  - name: dim_customers
+    description: One row per customer.
+    columns:
+      - name: customer_id
+        data_tests: [unique, not_null]

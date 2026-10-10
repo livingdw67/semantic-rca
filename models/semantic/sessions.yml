@@ -1,0 +1,51 @@
+semantic_models:
+  - name: sessions
+    description: Session-grain fact. Every governed traffic and conversion metric starts here.
+    model: ref('fct_sessions')
+    defaults:
+      agg_time_dimension: session_date
+    entities:
+      - name: session
+        type: primary
+        expr: session_id
+      - name: customer
+        type: foreign
+        expr: customer_id
+    dimensions:
+      - name: session_date
+        type: time
+        type_params:
+          time_granularity: day
+      - name: platform
+        type: categorical
+        description: ios / android / web
+      - name: country
+        type: categorical
+      - name: channel
+        type: categorical
+        description: Marketing acquisition channel of the session
+      - name: device
+        type: categorical
+    measures:
+      - name: session_count
+        agg: count
+        expr: session_id
+      - name: order_count
+        agg: sum
+        expr: converted
+      - name: revenue_amount
+        agg: sum
+        expr: revenue
+
+  - name: customers
+    description: Customer attributes, joinable to sessions through the customer entity.
+    model: ref('dim_customers')
+    entities:
+      - name: customer
+        type: primary
+        expr: customer_id
+    dimensions:
+      - name: customer_tier
+        type: categorical
+      - name: signup_cohort
+        type: categorical

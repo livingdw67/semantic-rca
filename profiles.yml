@@ -1,0 +1,7 @@
+semantic_rca:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: rca.duckdb
+      threads: 4
