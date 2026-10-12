@@ -21,6 +21,16 @@ All four are the incidents planted in the synthetic data, with the right mechani
 None of the decoys is blamed: a German holiday in the same week, payday, seasonality, aliases,
 loose supersets, and 20 noise dimensions.
 
+**Why I built this.** When a KPI drops, the first question is always "why?", and answering it
+usually costs an analyst a day of slicing dashboards. I built this to automate that work using the
+same governed metric definitions a data team already trusts. It showcases the skills I bring to a
+senior data science role:
+
+- analytics engineering on a semantic layer (dbt, MetricFlow)
+- statistics that hold up (robust forecasting, bootstrap intervals, Shapley and Owen attribution)
+- warehouse-scale SQL (GROUPING SETS batching, HyperLogLog sketches)
+- honest evaluation against planted ground truth
+
 ## What problem this solves, and how v2 scales it
 
 v1 worked on a toy dataset but had four structural limits. v2 fixes each one:
