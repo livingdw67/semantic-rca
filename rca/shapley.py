@@ -456,7 +456,10 @@ def attribute(
             has_one, has_zero = lo[0] <= 1 <= hi[0], lo[0] <= 0 <= hi[0]
             # Decide on the interval, not the point: a homogeneous effect's slices have rho ~ 1
             # but a noisy point estimate, and a hard cut-off would flip the answer run to run.
-            if (has_one and not has_zero) or (has_one and has_zero and rho >= 0.5):
+            # When the data cannot tell the two apart, prefer the general segment B: it has more
+            # data and makes the weaker claim. A is preferred only when the rest of B demonstrably
+            # did not move the same way (the interval excludes 1).
+            if has_one:
                 verdict = "slice"
             elif has_zero:
                 verdict = "superset"

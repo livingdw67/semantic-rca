@@ -3,5 +3,7 @@ semantic_rca:
   outputs:
     dev:
       type: duckdb
-      path: rca.duckdb
+      # Overridable so the benchmark can build scenarios into their own warehouse
+      # (keep the file name rca.duckdb: DuckDB names the database after it).
+      path: "{{ env_var('RCA_DUCKDB', 'rca.duckdb') }}"
       threads: 4

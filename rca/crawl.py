@@ -32,6 +32,7 @@ import pandas as pd
 
 from rca.attribution import Cause, _row_to_cause, _volume_share, decompose
 from rca.planner import SlicePlanner
+from rca.preflight import screen_dimensions
 from rca.semantic_client import SemanticLayer, pretty_dimension
 
 RAW = ("n0", "n1", "d0", "d1")
@@ -117,6 +118,7 @@ class Crawler:
         self.contribution_se = contribution_se
         self.tables: dict[frozenset[str], pd.DataFrame] = {}
         self.total_change = float("nan")
+        self.preflight_notes: list[str] = []
 
     # ------------------------------------------------------------------ scoring
     def _decompose(self, raw: dict[frozenset[str], pd.DataFrame]) -> dict[frozenset[str], pd.DataFrame]:
@@ -238,7 +240,8 @@ class Crawler:
             if r["cardinality"] > cfg.max_card:
                 screened[r["dimension"]] = f"cardinality {int(r['cardinality']):,} > {cfg.max_card}"
             elif r["cardinality"] <= 1 or (pd.notna(r["top_share"]) and r["top_share"] >= cfg.near_constant):
-                screened[r["dimension"]] = f"near-constant (top value {r['top_share']:.2%})"
+                screened[r["dimension"]] = (f"one value carries {r['top_share']:.2%} of the metric: near-constant, "
+                                            "or derived from the outcome")
         dims = sorted(d for d in dims if d not in screened)
 
         # Stage 1: marginals
@@ -249,6 +252,13 @@ class Crawler:
         self.tables |= self._decompose(raw)
         aliases = self._collapse_aliases(dims)
         dims = sorted(aliases)
+        # Pre-flight: renamed categories and outcome-derived dimensions (rca/preflight.py).
+        check = screen_dimensions(self.tables, dims, self.shape.kind, meta)
+        for d, reason in check.excluded.items():
+            screened[d] = reason
+            self.tables.pop(frozenset({d}), None)
+        dims = [d for d in dims if d not in check.excluded]
+        self.preflight_notes = check.notes
         levels = [{"level": 1, "sets": len(dims), "statements": sl.queries_run - q0}]
 
         nodes1 = []
