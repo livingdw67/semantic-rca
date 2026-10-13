@@ -47,6 +47,7 @@ PLATFORMS = {"ios": 0.45, "android": 0.35, "web": 0.20}
 COUNTRIES = {"US": 0.35, "DE": 0.18, "GB": 0.13, "FR": 0.12, "BR": 0.12, "IN": 0.10}
 CHANNELS = {"organic": 0.28, "paid_search": 0.25, "tiktok": 0.14, "email": 0.18, "referral": 0.15}
 DEVICES = ["desktop", "mobile", "tablet"]
+DEVICE_GIVEN_PLATFORM = {"web": [0.70, 0.20, 0.10], "app": [0.0, 0.85, 0.15]}  # app = ios or android
 REGION = {"US": "NA", "DE": "EU", "GB": "EU", "FR": "EU", "BR": "LATAM", "IN": "APAC"}
 TIERS = {"free": 0.60, "plus": 0.30, "pro": 0.10}
 COHORTS = ["2024H1", "2024H2", "2025H1", "2025H2", "2026H1", "2026H2"]
@@ -173,7 +174,8 @@ def build_sessions(rng, customers: pd.DataFrame, sc: Scenario) -> tuple[pd.DataF
             "channel": _codes(rng, CHANNELS, n),
         }
         d["device"] = np.where(
-            d["platform"] == WEB, rng.choice(3, n, p=[0.7, 0.2, 0.1]), rng.choice([1, 2], n, p=[0.85, 0.15])
+            d["platform"] == WEB, rng.choice(3, n, p=DEVICE_GIVEN_PLATFORM["web"]),
+            rng.choice([1, 2], n, p=DEVICE_GIVEN_PLATFORM["app"][1:]),
         ).astype(np.int16)
         app_version = np.full(n, 4, np.int16)
         ios, andr = d["platform"] == IOS, d["platform"] == AND

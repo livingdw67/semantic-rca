@@ -6,9 +6,11 @@ so they are checked before anything is attributed:
 1. **Incomplete trailing days.** A late-arriving partition makes the last day look like a crash.
    Trailing days whose volume is far below the same weekday in previous weeks are excluded from
    the current window (and reported), unless the caller insists on keeping them.
-2. **Renamed categories.** If "iOS" becomes "ios" mid-window, one value vanishes and another of
-   similar size appears. That is a data change, not a cause; the dimension's history is broken, so
-   it is excluded with a reason.
+2. **Renamed categories.** If "iOS" becomes "ios", one value fades out and another appears. That is
+   a data change, not a cause; the dimension's history is broken, so it is excluded with a reason.
+   Caught two ways: a value that vanished and one of similar size that appeared (a rename at the
+   window boundary, any spelling), or two spellings of one label, one of them new or gone (a
+   rename partway through a window).
 3. **Outcome-derived dimensions.** A column like checkout_status (purchased / browsed) is defined
    by the outcome itself, so it "explains" every change perfectly and means nothing. For rate
    metrics: almost all volume sits in values whose rate is ~0% or ~100%. For level metrics: a
@@ -21,6 +23,7 @@ dimension can be declared ``rca: outcome`` explicitly.
 from __future__ import annotations
 
 import datetime as dt
+import re
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -71,8 +74,13 @@ def _volume_cols(t: pd.DataFrame) -> tuple[str, str]:
     return ("d0", "d1") if "d0" in t else ("n0", "n1")
 
 
+def _label_key(value) -> str:
+    return re.sub(r"[^0-9a-z]", "", str(value).lower())
+
+
 def detect_rename(table: pd.DataFrame, dim: str, min_share: float = 0.01, tolerance: float = 0.35) -> Optional[str]:
-    """A value that vanished and another that appeared with a similar share: likely a rename."""
+    """A value that vanished and another that appeared with a similar share, or two spellings of
+    one label with one of them new or gone: likely a rename."""
     c0, c1 = _volume_cols(table)
     s0 = table[c0] / max(table[c0].sum(), 1e-12)
     s1 = table[c1] / max(table[c1].sum(), 1e-12)
@@ -84,6 +92,15 @@ def detect_rename(table: pd.DataFrame, dim: str, min_share: float = 0.01, tolera
             if abs(b - a) / a <= tolerance:
                 return (f"values changed between windows: '{old[dim]}' ({a:.0%} of baseline) vanished and "
                         f"'{nw[dim]}' ({b:.0%} of current) appeared -- likely a rename; fix the model or map them")
+    # A rename partway through a window leaves both spellings in it, so neither vanishes.
+    spellings: dict[str, list] = {}
+    for _, row in table.iterrows():
+        spellings.setdefault(_label_key(row[dim]), []).append(row)
+    for rows in spellings.values():
+        if len(rows) > 1 and any(r[c0] == 0 or r[c1] == 0 for r in rows):
+            names = " and ".join(f"'{r[dim]}'" for r in rows)
+            return (f"{names} are one label spelled two ways, and one spelling is new or gone -- likely a "
+                    "rename; fix the model or map them")
     return None
 
 

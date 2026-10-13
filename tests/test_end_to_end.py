@@ -47,18 +47,24 @@ def runs(sl):
     return get
 
 
-def segment(label: str) -> dict:
-    """'country=DE & platform=ios = region=..' -> {'country': 'DE', 'platform': 'ios'}"""
-    first = label.split(" = ")[0].split(" (excluding")[0]
-    return dict(part.split("=", 1) for part in first.split(" & "))
+def segments(label: str) -> list[dict]:
+    """'country=US & platform=ios = platform=ios & region=NA (excluding ..)' -> both descriptions."""
+    label = label.split(" (excluding ")[0]
+    return [dict(part.split("=", 1) for part in desc.split(" & ")) for desc in label.split(" = ")]
 
 
 def canon(seg: dict) -> str:
     return str(sorted(seg.items()))
 
 
+def described(causes) -> dict[str, object]:
+    """Every description of every cause: region=NA and country=US select the same rows here, and
+    which one the crawl reaches first is not part of the contract."""
+    return {canon(seg): c for c in causes for seg in segments(c.label)}
+
+
 def found(result) -> dict[str, object]:
-    return {canon(segment(c.label)): c for c in result.attribution.accepted}
+    return described(result.attribution.accepted)
 
 
 # --------------------------------------------------------------------------- planner
@@ -101,8 +107,10 @@ def test_planner_matches_metricflow(sl, metric):
 @pytest.mark.parametrize("metric", ["conversion_rate", "orders", "revenue_per_session", "buyer_rate"])
 def test_recovers_all_planted_causes(runs, truth, metric):
     result = runs(metric)
-    expected = {canon(c["segment"]) for c in truth["causes"]}
-    assert set(found(result)) == expected, [c.label for c in result.attribution.accepted]
+    by_segment = found(result)
+    for cause in truth["causes"]:
+        assert canon(cause["segment"]) in by_segment, [c.label for c in result.attribution.accepted]
+    assert len(result.attribution.accepted) == len(truth["causes"]), [c.label for c in result.attribution.accepted]
 
 
 def test_revenue_recovers_the_three_strong_causes(runs, truth):
@@ -113,7 +121,7 @@ def test_revenue_recovers_the_three_strong_causes(runs, truth):
     strong = {canon(c["segment"]) for c in truth["causes"] if c["direction"] == "down"}
     assert strong <= accepted
     assert accepted <= strong | {canon({"platform": "ios", "country": "US"})}
-    considered = {canon(segment(c.label)) for c in result.attribution.candidates}
+    considered = described(result.attribution.candidates)
     assert canon({"platform": "ios", "country": "US"}) in considered
 
 
@@ -136,7 +144,18 @@ def test_equivalent_dimensions_are_reported_not_suppressed(runs):
 
 def test_screening(runs):
     screened = runs("conversion_rate").crawl.screened
-    assert set(screened) == {"session__landing_page_id", "session__is_test_traffic", "session__sample_bucket"}
+    assert set(screened) == {"session__landing_page_id", "session__is_test_traffic", "session__sample_bucket",
+                             "session__checkout_status"}
+    assert screened["session__checkout_status"].startswith("preflight: looks derived from the outcome")
+
+
+def test_preflight_notes_reach_the_report(runs):
+    from rca.report import to_markdown, to_summary
+
+    result = runs("conversion_rate")
+    assert any(n.startswith("`checkout_status` excluded") for n in result.preflight)
+    assert "Pre-flight data checks" in to_markdown(result)
+    assert to_summary(result)["preflight"] == result.preflight
 
 
 def test_quiet_week_reports_nothing(runs):
@@ -165,7 +184,8 @@ def test_screen_sample_mode_finds_the_same_causes(sl, truth):
 
     cfg = dataclasses.replace(PipelineConfig(), crawl=dataclasses.replace(CrawlConfig(), screen_sample=0.2))
     result = run_rca(sl, "conversion_rate", config=cfg)
-    assert set(found(result)) == {canon(c["segment"]) for c in truth["causes"]}
+    assert {canon(c["segment"]) for c in truth["causes"]} <= set(found(result))
+    assert len(result.attribution.accepted) == len(truth["causes"])
     assert any(s["purpose"] == "stage 2: sample screen" for s in result.statements)
 
 

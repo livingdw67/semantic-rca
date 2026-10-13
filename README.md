@@ -78,6 +78,8 @@ The **crawl** keeps the statement count flat as dimensions grow:
 - **Scoring by surplus.** Surplus is a segment's share of the change minus its share of volume. A
   slice that is 57% of traffic and carries 63% of the drop is unremarkable. Surplus is z-tested
   against the forecast's noise floor, so random drift in big noise segments never enters the beam.
+  For ratio metrics the mix effect is also tested on its own: a channel that lost half its traffic
+  but happened to convert a little better has a large mix effect and an unremarkable net surplus.
 - **Stage 2 beam search.** Expands the top nodes along every other dimension. A child replaces its
   parent only if it concentrates the parent's *driver* (rate or mix effect). The lift test stops
   "iOS" becoming "iOS & mobile" just because most iOS traffic is mobile.
@@ -150,8 +152,11 @@ conversion, keep traffic) and a **volume** player (restore traffic, keep convers
 2. **Nesting by effect homogeneity**, conditioned on the other causes. If B contains A, the bootstrap
    interval of ρ (B-minus-A's per-unit effect relative to A's) decides:
    - ρ ≈ 0: B is a **loose superset**, so keep A (`ios & EU` gives way to `ios & DE`).
-   - ρ ≈ 1: A is a **slice**, so keep B (`ios_7.2 & US` gives way to `ios & US`).
-   - Otherwise both are kept and made disjoint.
+   - ρ ≈ 1: A is a **slice**, so keep B (`ios_7.2 & US` gives way to `ios & US`). When the
+     interval contains both 0 and 1, the data can't tell them apart, and the more general B is
+     kept: it has more data and makes the weaker claim.
+   - Otherwise both are kept and made disjoint. If the inner one is later eliminated, the outer
+     one gets its cells back.
 3. **Backward elimination** by leave-one-out contribution, with Bonferroni-adjusted bootstrap
    intervals. A big overlapping segment like "mobile" has no *unique* contribution once the real
    cause is present.
@@ -162,6 +167,28 @@ conversion, keep traffic) and a **volume** player (restore traffic, keep convers
 Uncertainty comes from a **residual bootstrap**: it resamples daily deviations from the forecast,
 not raw days. Resampling raw days put four Saturdays against an expectation computed for one,
 which inflated every interval.
+
+### 5. Pre-flight data checks
+
+Three data problems produce convincing but false causes, so `rca/preflight.py` checks for them
+before anything is attributed. Each finding is listed at the top of the report and in the JSON
+summary.
+
+- **Incomplete trailing days.** A late partition makes the last day look like a crash. Trailing
+  days with less than 60% of the same weekday's median over the previous four weeks are dropped
+  from the current window. Holidays are kept, because a quiet holiday is not missing data.
+  `--allow-partial` keeps them anyway.
+- **Renamed categories.** A value that vanished while one of similar size appeared, or two
+  spellings of one label (`iOS`, `ios`) where one is new or gone. The dimension's history is
+  broken, so it is excluded with the reason. A version rollout, where the old value shrinks but
+  doesn't vanish, is a candidate cause, not a rename.
+- **Outcome-derived dimensions.** `checkout_status` (purchased / abandoned / browsed) is defined
+  by conversion, so it "explains" any change in conversion perfectly. For a rate, it's flagged
+  when nearly all volume sits in values converting at ~0% or ~100%. For a level metric, it's
+  flagged when a low-cardinality dimension has values that never carry any of the metric.
+
+Any exclusion can be overridden with `config.meta.rca: include` on the dimension, and a dimension
+can be declared `rca: outcome` up front.
 
 ## Results against ground truth
 
@@ -240,9 +267,12 @@ rca/
   detect           naive vs expected vs anomaly
   shapley          counterfactual games (additive + sketch), nesting, LOO, Owen values
   sketch           HLL decode / merge / estimate
+  preflight        incomplete days, renamed categories, outcome-derived dimensions
   pipeline         detect -> crawl -> flag cube -> attribute
   report, cli      Markdown + JSON output
   exhaustive*      v1 engine kept as an oracle
-scripts/           synthetic data with planted incidents + decoys
+scripts/
+  generate_data    synthetic data with planted incidents + decoys
+  benchmark        random incidents in their own warehouses, scored against ground truth
 tests/             unit tests (no warehouse) + end-to-end tests scored against ground truth
 ```

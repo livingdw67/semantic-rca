@@ -65,6 +65,8 @@ def to_markdown(r: RCAResult) -> str:
         "",
     ]
     lines += [f"> {n}" for n in r.notes] + ([""] if r.notes else [])
+    if r.preflight:
+        lines += ["**Pre-flight data checks**", "", *[f"- {p}" for p in r.preflight], ""]
 
     acc = sorted(a.accepted, key=lambda c: -abs(c.phi))
     total = a.anomaly
@@ -148,6 +150,7 @@ def to_summary(r: RCAResult) -> dict:
             for c in sorted(a.accepted, key=lambda c: -abs(c.phi))
         ],
         "rejected": [{"segment": c.label, "reason": c.reason} for c in a.candidates if c.status != "accepted"],
+        "preflight": r.preflight,
         "residual_share": _num(_share(a.residual, a.anomaly)),
         "statements": r.queries_run,
         "seconds": r.seconds,

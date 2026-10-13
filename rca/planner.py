@@ -139,6 +139,8 @@ class SlicePlanner:
         max_sets: int = 48,
         cell_budget: int = 5_000_000,
         approx_distinct: bool = False,
+        where: Sequence[str] = (),
+        label: str = "",
     ) -> None:
         self.sl = sl
         self.shape = shape
@@ -146,6 +148,9 @@ class SlicePlanner:
         self.max_sets = max_sets
         self.cell_budget = cell_budget
         self.approx_distinct = approx_distinct
+        # MetricFlow where-filters applied to every statement (e.g. one half of a sample split)
+        self.where = list(where)
+        self.label = label
         self.dialect = DIALECTS.get(sl.dialect, DIALECTS["duckdb"])
         self.cardinality: dict[str, int] = {}
         self.rows_per_day: Optional[float] = None
@@ -181,11 +186,15 @@ class SlicePlanner:
     def _grain_extra(self) -> list[str]:
         return [self.shape.distinct_entity] if self.shape.has_distinct else []
 
+    def _compile(self, metrics, group_by, start, end, where: Sequence[str] = ()) -> str:
+        return self.sl.compile_sql(metrics, group_by, start, end, [*self.where, *where])
+
     def _run(self, sql: str, purpose: str, n_sets: int = 0) -> pd.DataFrame:
         key = hashlib.sha1(sql.encode()).hexdigest()
         if key not in self._cache:
             t0 = time.perf_counter()
             self._cache[key] = self.sl.execute(sql)
+            purpose = f"{purpose} ({self.label})" if self.label else purpose
             self.statements.append({
                 "purpose": purpose, "grouping_sets": n_sets, "rows": len(self._cache[key]),
                 "seconds": round(time.perf_counter() - t0, 2), "sql": sql,
@@ -208,13 +217,13 @@ class SlicePlanner:
         vol = self.shape.denominator or self.shape.numerator
         branches = []
         for d in dims:
-            mf = self.sl.compile_sql([vol], [d], self.windows.start, self.windows.end)
+            mf = self._compile([vol], [d], self.windows.start, self.windows.end)
             branches.append(
                 f"select {_lit(d)} as rca_dim, count(*) as rca_card, max(rca_v) as rca_top, sum(rca_v) as rca_tot "
                 f"from (select {d}, {vol} as rca_v from ({mf}) rca_q) rca_t"
             )
         if primary_entity:
-            mf = self.sl.compile_sql([vol], [TIME_GROUP_BY, primary_entity], self.windows.start, self.windows.end)
+            mf = self._compile([vol], [TIME_GROUP_BY, primary_entity], self.windows.start, self.windows.end)
             branches.append(
                 f"select '__rows__' as rca_dim, count(*) as rca_card, null as rca_top, null as rca_tot "
                 f"from ({mf}) rca_q"
@@ -259,7 +268,7 @@ class SlicePlanner:
     def _wrap_grouping_sets(self, block: Block, where: Sequence[str]) -> str:
         dims = block.dims
         comps = self._components()
-        mf = self.sl.compile_sql(
+        mf = self._compile(
             self.shape.base_metrics, [TIME_GROUP_BY, *dims, *self._grain_extra()],
             self.windows.start, self.windows.end, where,
         )
@@ -303,7 +312,7 @@ class SlicePlanner:
         -- peeling, exclusive attribution, Shapley, per-cell forecasts -- runs on this locally.
         """
         dims = sorted({d for seg in segments for d, _ in seg})
-        mf = self.sl.compile_sql(self.shape.base_metrics, [TIME_GROUP_BY, *dims], start, end)
+        mf = self._compile(self.shape.base_metrics, [TIME_GROUP_BY, *dims], start, end)
         flags = [f"case when {predicate(seg)} then 1 else 0 end as rca_f{i}" for i, seg in enumerate(segments)]
         comps = self._components()
         aggs = ", ".join(f"sum({c}) as {alias}" for c, alias in comps)
@@ -334,7 +343,7 @@ class SlicePlanner:
         p, d, w = precision, self.dialect, self.windows
         entity = self.shape.distinct_entity
         dims = sorted({dim for seg in segments for dim, _ in seg})
-        mf = self.sl.compile_sql(self.shape.base_metrics, [TIME_GROUP_BY, *dims, entity], w.start, w.end)
+        mf = self._compile(self.shape.base_metrics, [TIME_GROUP_BY, *dims, entity], w.start, w.end)
         flags = ", ".join(f"case when {predicate(seg)} then 1 else 0 end as rca_f{i}" for i, seg in enumerate(segments))
         fcols = ", ".join(f"rca_f{i}" for i in range(len(segments)))
         h = d.hash64.format(x=entity)
@@ -366,7 +375,7 @@ class SlicePlanner:
         """Additive components per (window bucket, flag cell) -- the count-distinct companion."""
         dims = sorted({d for seg in segments for d, _ in seg})
         w = self.windows
-        mf = self.sl.compile_sql(self.shape.base_metrics, [TIME_GROUP_BY, *dims], w.start, w.end)
+        mf = self._compile(self.shape.base_metrics, [TIME_GROUP_BY, *dims], w.start, w.end)
         flags = ", ".join(f"case when {predicate(seg)} then 1 else 0 end as rca_f{i}" for i, seg in enumerate(segments))
         additive = [(c, a) for c, a in self._components() if not self.shape.is_distinct(c)]
         aggs = ", ".join(f"sum({c}) as {a}" for c, a in additive) or "count(*) as rca_rows"
@@ -382,8 +391,8 @@ class SlicePlanner:
         """Top-line components over [start, current end]: daily (additive) or weekly buckets."""
         w = self.windows
         if not self.shape.has_distinct:
-            return self.sl.query(self.shape.base_metrics, start=start, end=w.end)
-        mf = self.sl.compile_sql(self.shape.base_metrics, [TIME_GROUP_BY, self.shape.distinct_entity], start, w.end)
+            return self.sl.query(self.shape.base_metrics, start=start, end=w.end, where=self.where)
+        mf = self._compile(self.shape.base_metrics, [TIME_GROUP_BY, self.shape.distinct_entity], start, w.end)
         diff = self.dialect.day_diff.format(a=TIME_GROUP_BY, b=self._date(w.end))
         approx, self.approx_distinct = self.approx_distinct, False  # detection needs exact counts
         aggs = ", ".join(f"{self._agg(c)} as {c}" for c in self.shape.base_metrics)
