@@ -18,28 +18,28 @@
   "causes": [
     {
       "segment": "channel=email",
-      "share_of_anomaly": 0.7063669176756423,
+      "share_of_anomaly": 0.7063669176756513,
       "ci": [
-        0.8587374491788434,
-        0.5501111144136278
+        0.8587374491788485,
+        0.5501111144136506
       ],
       "mechanism": "level"
     },
     {
       "segment": "country=DE & platform=ios",
-      "share_of_anomaly": 0.2653987438560059,
+      "share_of_anomaly": 0.2653987438560044,
       "ci": [
-        0.3427110170797786,
-        0.1869564984558564
+        0.34271101707977564,
+        0.1869564984558571
       ],
       "mechanism": "level"
     },
     {
       "segment": "channel=paid_search & country=US & platform=android = channel=paid_search & platform=android & region=NA",
-      "share_of_anomaly": 0.09707071019282498,
+      "share_of_anomaly": 0.09707071019282255,
       "ci": [
-        0.13548675185343478,
-        0.06525265492844992
+        0.13548675185342898,
+        0.06525265492845082
       ],
       "mechanism": "level"
     }
@@ -47,11 +47,11 @@
   "rejected": [
     {
       "segment": "channel=email & region=EU",
-      "reason": "slice of channel=email: the rest of it moves the same way (88% of the per-unit effect)"
+      "reason": "slice of channel=email: the rest of it moves the same way (88% of the relative effect)"
     },
     {
       "segment": "platform=ios & region=EU",
-      "reason": "loose superset of country=DE & platform=ios: the rest of it has no significant effect (17% of the per-unit effect)"
+      "reason": "loose superset of country=DE & platform=ios: the rest of it has no significant effect (17% of the relative effect)"
     },
     {
       "segment": "country=US & platform=ios = platform=ios & region=NA",
@@ -75,14 +75,15 @@
     },
     {
       "segment": "app_version=ios_7.2 & country=US = app_version=ios_7.2 & region=NA",
-      "reason": "slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (346% of the per-unit effect)"
+      "reason": "slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (346% of the relative effect)"
     },
     {
       "segment": "nps_band=nps_band_00 & channel=referral & region=NA",
       "reason": "no unique contribution given the others (LOO +0% of anomaly, CI -3%..+3%)"
     }
   ],
-  "residual_share": -0.06883637172447339,
+  "preflight": [],
+  "residual_share": -0.06883637172447842,
   "statements": 9,
-  "seconds": 17.929967599979136
+  "seconds": 16.80496140000014
 }

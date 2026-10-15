@@ -120,7 +120,9 @@ def test_revenue_recovers_the_three_strong_causes(runs, truth):
     accepted = set(found(result))
     strong = {canon(c["segment"]) for c in truth["causes"] if c["direction"] == "down"}
     assert strong <= accepted
-    assert accepted <= strong | {canon({"platform": "ios", "country": "US"})}
+    allowed = strong | {canon({"platform": "ios", "country": "US"})}
+    for c in result.attribution.accepted:  # any one of a cause's descriptions may match
+        assert any(canon(seg) in allowed for seg in segments(c.label)), c.label
     considered = described(result.attribution.candidates)
     assert canon({"platform": "ios", "country": "US"}) in considered
 

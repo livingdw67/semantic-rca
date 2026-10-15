@@ -74,19 +74,19 @@
   "rejected": [
     {
       "segment": "channel=email & region=EU",
-      "reason": "slice of channel=email: the rest of it moves the same way (107% of the per-unit effect)"
+      "reason": "slice of channel=email: the rest of it moves the same way (107% of the relative effect)"
     },
     {
       "segment": "channel=paid_search & country=US",
-      "reason": "slice of channel=paid_search: the rest of it moves the same way (143% of the per-unit effect)"
+      "reason": "slice of channel=paid_search: the rest of it moves the same way (143% of the relative effect)"
     },
     {
       "segment": "channel=tiktok & region=NA",
-      "reason": "slice of channel=tiktok: the rest of it moves the same way (84% of the per-unit effect)"
+      "reason": "slice of channel=tiktok: the rest of it moves the same way (84% of the relative effect)"
     },
     {
       "segment": "channel=tiktok & screen_size=screen_size_01",
-      "reason": "slice of channel=tiktok: the rest of it moves the same way (284% of the per-unit effect)"
+      "reason": "slice of channel=tiktok: the rest of it moves the same way (284% of the relative effect)"
     },
     {
       "segment": "ab_bucket=ab_bucket_01 & region=EU",
@@ -97,7 +97,8 @@
       "reason": "no unique contribution given the others (LOO -0% of anomaly, CI -0%..-0%)"
     }
   ],
+  "preflight": [],
   "residual_share": -8.616623287367928e-16,
   "statements": 11,
-  "seconds": 99.31355130003067
+  "seconds": 82.48614459999999
 }

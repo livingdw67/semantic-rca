@@ -13,10 +13,10 @@
       "mult": 0.1,
       "direction": "down",
       "relative_impact": {
-        "conversion_rate": -0.08014644107280725,
-        "orders": -0.08014644107280716,
-        "revenue": -0.0800843411683868,
-        "revenue_per_session": -0.08008434116838672
+        "conversion_rate": -0.07990963574367932,
+        "orders": -0.07990963574367932,
+        "revenue": -0.08086304173850517,
+        "revenue_per_session": -0.08086304173850513
       },
       "mechanism": "rate"
     },
@@ -28,10 +28,10 @@
       "mult": 0.5,
       "direction": "down",
       "relative_impact": {
-        "conversion_rate": -0.09062823712862608,
-        "orders": -0.1973216539832901,
-        "revenue": -0.19830034131194563,
-        "revenue_per_session": -0.09151971356054453
+        "conversion_rate": -0.08950992768883739,
+        "orders": -0.19798099382981024,
+        "revenue": -0.1961995943661177,
+        "revenue_per_session": -0.08788982485676504
       },
       "mechanism": "mix"
     },
@@ -45,10 +45,10 @@
       "mult": 0.05,
       "direction": "down",
       "relative_impact": {
-        "conversion_rate": -0.033919251204624384,
-        "orders": -0.03391925120462441,
-        "revenue": -0.03433589290533795,
-        "revenue_per_session": -0.03433589290533788
+        "conversion_rate": -0.03262667836717585,
+        "orders": -0.03262667836717571,
+        "revenue": -0.032467378734943986,
+        "revenue_per_session": -0.032467378734943965
       },
       "mechanism": "rate"
     },
@@ -61,10 +61,10 @@
       "mult": 1.3,
       "direction": "up",
       "relative_impact": {
-        "conversion_rate": 0.06261230884447991,
-        "orders": 0.06261230884447996,
-        "revenue": 0.06280515083318708,
-        "revenue_per_session": 0.06280515083318704
+        "conversion_rate": 0.06307362157963203,
+        "orders": 0.06307362157963216,
+        "revenue": 0.06259419187541919,
+        "revenue_per_session": 0.06259419187541916
       },
       "mechanism": "rate"
     }
@@ -87,5 +87,5 @@
     "sample_bucket",
     "checkout_status"
   ],
-  "sessions": 3385896
+  "sessions": 3386453
 }

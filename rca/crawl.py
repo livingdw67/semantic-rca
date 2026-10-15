@@ -46,6 +46,7 @@ class CrawlConfig:
     near_constant: float = 0.995
     min_surplus: float = 0.05  # |pct_of_change - share| for a node to enter the beam ...
     min_z: float = 3.0  # ... and its z against the noise floor
+    score: str = "surplus"  # or "excess" (experimental, see Crawler._decompose)
     beam: int = 10
     max_depth: int = 3
     max_sets_per_level: int = 300
@@ -129,18 +130,23 @@ class Crawler:
         for s, t in raw.items():
             df = decompose(t, sorted(s), self.shape.kind, base, cur)
             df["surplus"] = df["pct_of_change"] - df["share0"]
-            # Excess: how far the share of the change falls outside [0, share of volume]. Carrying
-            # more than its share, or moving against the change, is anomalous. A segment in between
-            # simply did not move: when email collapses, organic carries none of the drop without
-            # being a cause, and scoring it by surplus fills the beam with such complements.
-            pct, share = df["pct_of_change"], df["share0"]
-            df["excess"] = np.where(pct > share, pct - share, np.where(pct < 0, pct, 0.0))
+            # Experimental, CrawlConfig.score = "excess": how far the share of the change falls
+            # outside [0, share of volume]. A segment in between simply did not move: when email
+            # collapses, organic carries none of the drop without being a cause, and scoring it by
+            # surplus fills the beam with such complements. Not the default: an offsetting segment
+            # then scores |pct| instead of |pct| + share, and on the showcase the US-iOS win drops
+            # out of the beam for orders, revenue and buyer_rate.
+            if self.cfg.score == "excess":
+                pct, share = df["pct_of_change"], df["share0"]
+                df["beam_score"] = np.where(pct > share, pct - share, np.where(pct < 0, pct, 0.0))
+            else:
+                df["beam_score"] = df["surplus"]
             # Each table's own total: for count-distinct metrics, session-level dimensions overlap
             # (one customer, several screen sizes), so totals differ from table to table.
             total = float(df["contribution"].sum())
             if self.contribution_se is not None and total:
                 se = self.contribution_se(df["share0"].to_numpy()) / abs(total)
-                df["z"] = np.abs(df["excess"]) / np.maximum(se, 1e-12)
+                df["z"] = np.abs(df["beam_score"]) / np.maximum(se, 1e-12)
                 if "mix_effect" in df:
                     # A traffic shift is a mechanism of its own, expected to be zero, so it is tested
                     # on its own too: email losing half its traffic while converting a little better
@@ -153,7 +159,7 @@ class Crawler:
         return out
 
     def _hot(self, df: pd.DataFrame) -> pd.Series:
-        hot = (df["excess"].abs() >= self.cfg.min_surplus) & (df["z"] >= self.cfg.min_z)
+        hot = (df["beam_score"].abs() >= self.cfg.min_surplus) & (df["z"] >= self.cfg.min_z)
         if "z_mix" in df:
             hot |= (df["mix_share"].abs() >= self.cfg.min_surplus) & (df["z_mix"] >= self.cfg.min_z)
         return hot
@@ -397,7 +403,7 @@ class Crawler:
                 if node.keys < s:
                     kids = _match(table, dict(node.cause.dims))
                     if len(kids):
-                        best = max(best, float(kids["excess"].abs().max()))
+                        best = max(best, float(kids["beam_score"].abs().max()))
             reward[s] = best
         ranked = sorted(sets, key=lambda s: -reward[s])
         keep = max(1, math.ceil(len(ranked) / cfg.halving_eta))

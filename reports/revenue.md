@@ -24,32 +24,32 @@ Everything else: -7% of the anomaly.
 
 | Segment | Why |
 |---|---|
-| channel=email & region=EU | slice of channel=email: the rest of it moves the same way (88% of the per-unit effect) |
-| platform=ios & region=EU | loose superset of country=DE & platform=ios: the rest of it has no significant effect (17% of the per-unit effect) |
+| channel=email & region=EU | slice of channel=email: the rest of it moves the same way (88% of the relative effect) |
+| platform=ios & region=EU | loose superset of country=DE & platform=ios: the rest of it has no significant effect (17% of the relative effect) |
 | country=US & platform=ios = platform=ios & region=NA | no unique contribution given the others (LOO -12% of anomaly, CI -33%..+8%) |
 | app_version=ios_7.2 & region=EU | no unique contribution given the others (LOO +3% of anomaly, CI -5%..+10%) |
 | channel=organic & experiment_arm=experiment_arm_01 | no unique contribution given the others (LOO -3% of anomaly, CI -17%..+11%) |
 | channel=referral & device=mobile & region=NA | no unique contribution given the others (LOO -0% of anomaly, CI -6%..+6%) |
 | channel=organic & country=US = channel=organic & region=NA | no unique contribution given the others (LOO +3% of anomaly, CI -6%..+12%) |
-| app_version=ios_7.2 & country=US = app_version=ios_7.2 & region=NA | slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (346% of the per-unit effect) |
+| app_version=ios_7.2 & country=US = app_version=ios_7.2 & region=NA | slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (346% of the relative effect) |
 | nps_band=nps_band_00 & channel=referral & region=NA | no unique contribution given the others (LOO +0% of anomaly, CI -3%..+3%) |
 
 ## How this was produced
 
-- **9 warehouse statements** in 17.9s; every one is MetricFlow-compiled SQL (the planner only wraps it with window buckets and GROUPING SETS).
-- 28 dimensions crawled after screening: `sample_bucket` (meta rca: exclude); `is_test_traffic` (near-constant (top value 99.97%)); `landing_page_id` (cardinality 2,500 > 500).
+- **9 warehouse statements** in 16.8s; every one is MetricFlow-compiled SQL (the planner only wraps it with window buckets and GROUPING SETS).
+- 28 dimensions crawled after screening: `sample_bucket` (meta rca: exclude); `checkout_status` (one value carries 100.00% of the metric: near-constant, or derived from the outcome); `is_test_traffic` (one value carries 99.97% of the metric: near-constant, or derived from the outcome); `landing_page_id` (cardinality 2,500 > 500).
 - Aliases collapsed: `country` = `storefront`
 - Expected values for attribution: per-cell forecasts (36/36 cells modelled, rest scaled).
 
 | Statement | Grouping sets | Rows | Seconds |
 |---|---|---|---|
-| stage 0: dimension stats |  | 32 | 0.11 |
-| stage 1: marginals | 29 | 452 | 1.17 |
-| stage 2: level 2 | 48 | 5,356 | 2.58 |
-| stage 2: level 2 | 30 | 906 | 1.29 |
-| stage 2: level 3 | 48 | 20,542 | 3.97 |
-| stage 2: level 3 | 29 | 3,340 | 2.44 |
-| stage 2b: heredity closure | 3 | 168 | 0.15 |
+| stage 0: dimension stats |  | 33 | 0.10 |
+| stage 1: marginals | 29 | 452 | 1.11 |
+| stage 2: level 2 | 48 | 5,356 | 2.62 |
+| stage 2: level 2 | 30 | 906 | 1.22 |
+| stage 2: level 3 | 48 | 20,542 | 3.63 |
+| stage 2: level 3 | 29 | 3,340 | 1.86 |
+| stage 2b: heredity closure | 3 | 168 | 0.11 |
 | stage 3: flag cube (daily) |  | 14,399 | 0.91 |
 
 <details><summary>Stage 1 statement: MetricFlow SQL wrapped in GROUPING SETS</summary>

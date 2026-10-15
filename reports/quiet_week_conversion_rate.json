@@ -17,7 +17,10 @@
   "p": 0.9208879840284785,
   "causes": [],
   "rejected": [],
+  "preflight": [
+    "`checkout_status` excluded: looks derived from the outcome: rates are all ~0% or ~100% ('purchased' 100%, 'abandoned_cart' 0%, 'browsed' 0%)"
+  ],
   "residual_share": 1.0,
   "statements": 3,
-  "seconds": 2.481657800031826
+  "seconds": 2.6321548000000803
 }

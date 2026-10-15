@@ -46,6 +46,7 @@ class PipelineConfig:
     sketch_precision: int = 14
     seed: int = 0
     allow_partial: bool = False  # keep trailing days that look incomplete
+    prefer_general: bool = False  # experimental nesting rule, see shapley.attribute
 
 
 @dataclass
@@ -194,7 +195,8 @@ def _attribute_additive(planner, shape, windows, segments, labels, calendar, his
     def restore():
         game.set_data(*orig)
 
-    att = attribute(game, labels, resample, restore, n_boot=config.n_boot, min_pct=config.min_pct, seed=config.seed)
+    att = attribute(game, labels, resample, restore, n_boot=config.n_boot, min_pct=config.min_pct, seed=config.seed,
+                    prefer_general=config.prefer_general)
     return att, method
 
 
@@ -242,5 +244,5 @@ def _attribute_distinct(planner, shape, segments, labels, config):
     if shape.denominator:
         comps["d"] = spec(shape.denominator)
     game = SketchGame(shape.kind, flags, comps, p)
-    att = attribute(game, labels, min_pct=config.min_pct, seed=config.seed)
+    att = attribute(game, labels, min_pct=config.min_pct, seed=config.seed, prefer_general=config.prefer_general)
     return att, f"HLL sketches (p={p}) vs each of {W} baseline weeks"

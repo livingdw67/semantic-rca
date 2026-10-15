@@ -343,11 +343,13 @@ def attribute(
     min_pct: float = 0.05,
     seed: int = 0,
     equivalent_jaccard: float = 0.95,
+    prefer_general: bool = False,
 ) -> Attribution:
     """Clean the candidate set, then compute Owen values with uncertainty.
 
     ``resample(rng)`` mutates the game into one bootstrap replicate; ``restore()`` undoes it.
-    For SketchGame, uncertainty comes from the W baseline weeks instead.
+    For SketchGame, uncertainty comes from the W baseline weeks instead. ``prefer_general``
+    switches on an experimental nesting rule (see step 2).
     """
     rng = np.random.default_rng(seed)
     log: list[str] = []
@@ -470,10 +472,19 @@ def attribute(
             has_one, has_zero = lo[0] <= 1 <= hi[0], lo[0] <= 0 <= hi[0]
             # Decide on the interval, not the point: a homogeneous effect's slices have rho ~ 1
             # but a noisy point estimate, and a hard cut-off would flip the answer run to run.
-            # When the data cannot tell the two apart, prefer the general segment B: it has more
-            # data and makes the weaker claim. A is preferred only when the rest of B demonstrably
-            # did not move the same way (the interval excludes 1).
-            if has_one:
+            a_is_noise = False
+            if prefer_general:
+                # Experimental: when the data cannot tell the two apart, prefer the general segment
+                # B, which has more data and makes the weaker claim. Also when A's own effect can't
+                # be told apart from zero, since rho divides by it and then swings wildly. Not the
+                # default: on the showcase it keeps a broad noise segment (pro & ios) alive, which
+                # absorbs email's unique contribution to revenue per session.
+                e_lo, e_hi = interval((samples[..., 1] - samples[..., 0]).reshape(-1, 1), np.array([eff_a]), z=1.96)
+                a_is_noise = e_lo[0] <= 0 <= e_hi[0]
+                is_slice = a_is_noise or has_one
+            else:
+                is_slice = (has_one and not has_zero) or (has_one and has_zero and rho >= 0.5)
+            if is_slice:
                 verdict = "slice"
             elif has_zero:
                 verdict = "superset"
@@ -481,14 +492,16 @@ def attribute(
                 verdict = "both"
             if verdict == "slice":
                 alive.remove(a)
-                a.status, a.reason = "rejected", (f"slice of {b.label}: the rest of it moves the same way "
-                                                  f"({rho:.0%} of the relative effect)")
+                a.status, a.reason = "rejected", (
+                    f"slice of {b.label}: its own effect is indistinguishable from zero" if a_is_noise else
+                    f"slice of {b.label}: the rest of it moves the same way ({rho:.0%} of the relative effect)")
             elif verdict == "superset":
                 alive.remove(b)
                 b.status, b.reason = "rejected", (f"loose superset of {a.label}: the rest of it has no "
                                                   f"significant effect ({rho:.0%} of the relative effect)")
             rest_zero = verdict == "superset"
-            log.append(f"nesting {a.label} in {b.label}: rho={rho:.2f} (CI {lo[0]:.2f}..{hi[0]:.2f}) -> {verdict}")
+            log.append(f"nesting {a.label} in {b.label}: rho={rho:.2f} (CI {lo[0]:.2f}..{hi[0]:.2f})"
+                       f"{', inner effect ~0' if a_is_noise else ''} -> {verdict}")
 
     # Nested pairs that both survived describe different effects (a concentrated core inside a
     # broader, weaker one). Make them disjoint so leave-one-out is meaningful for both:

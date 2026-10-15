@@ -138,17 +138,17 @@ def screen_dimensions(tables: dict[frozenset, pd.DataFrame], dims: list[str], ki
     excluded, notes = {}, []
     for d in dims:
         tag = (meta.get(d) or {}).get("rca")
-        if tag == "outcome":
-            excluded[d] = "declared meta rca: outcome"
-            continue
         t = tables.get(frozenset({d}))
-        if t is None:
-            continue
-        reason = detect_rename(t, d) or detect_leakage(t, d, kind)
+        reason = (detect_rename(t, d) or detect_leakage(t, d, kind)) if t is not None else None
         if reason and tag == "include":
             notes.append(f"`{pretty_dimension(d)}` {reason}, but it is tagged rca: include, so it was kept")
         elif reason:
             excluded[d] = "preflight: " + reason
+        elif tag == "outcome":
+            # Detection runs first so the report says what it saw. A declaration still covers metrics
+            # where the circularity is invisible: counting active customers, checkout_status splits
+            # sessions by conversion but nothing about the count itself looks derived.
+            excluded[d] = "declared meta rca: outcome"
     return DimensionScreen(excluded, notes)
 
 

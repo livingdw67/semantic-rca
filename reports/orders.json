@@ -56,26 +56,27 @@
   "rejected": [
     {
       "segment": "channel=email & region=EU",
-      "reason": "slice of channel=email: the rest of it moves the same way (86% of the per-unit effect)"
+      "reason": "slice of channel=email: the rest of it moves the same way (86% of the relative effect)"
     },
     {
       "segment": "platform=ios & region=EU",
-      "reason": "loose superset of country=DE & platform=ios: the rest of it has no significant effect (1% of the per-unit effect)"
+      "reason": "loose superset of country=DE & platform=ios: the rest of it has no significant effect (1% of the relative effect)"
     },
     {
       "segment": "channel=organic & country=US & platform=ios = channel=organic & platform=ios & region=NA",
-      "reason": "slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (85% of the per-unit effect)"
+      "reason": "slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (85% of the relative effect)"
     },
     {
       "segment": "app_version=ios_7.2 & country=US = app_version=ios_7.2 & region=NA",
-      "reason": "slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (214% of the per-unit effect)"
+      "reason": "slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (214% of the relative effect)"
     },
     {
       "segment": "app_version=android_5.5 & channel=paid_search & country=US = app_version=android_5.5 & channel=paid_search & region=NA",
-      "reason": "slice of channel=paid_search & country=US & platform=android = channel=paid_search & platform=android & region=NA: the rest of it moves the same way (91% of the per-unit effect)"
+      "reason": "slice of channel=paid_search & country=US & platform=android = channel=paid_search & platform=android & region=NA: the rest of it moves the same way (91% of the relative effect)"
     }
   ],
+  "preflight": [],
   "residual_share": 0.06607119126978504,
   "statements": 8,
-  "seconds": 20.267418599978555
+  "seconds": 19.20715199999995
 }

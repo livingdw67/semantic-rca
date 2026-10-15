@@ -141,7 +141,22 @@ def _holiday_multipliers(day: date) -> list[tuple[str, float, float]]:
     return out
 
 
+def _match(d: dict[str, np.ndarray], keys: dict[str, list[str]], segment: dict[str, str]) -> np.ndarray:
+    m = np.ones(len(next(iter(d.values()))), bool)
+    for dim, value in segment.items():
+        m &= d[dim] == keys[dim].index(value)
+    return m
+
+
 def build_sessions(rng, customers: pd.DataFrame, sc: Scenario) -> tuple[pd.DataFrame, dict]:
+    """Sessions for every day, plus each incident's expected impact on each metric.
+
+    The random draws follow the original order, so the default scenario with seed 11 reproduces
+    the published sample exactly. Anything newer (``checkout_status``) draws from its own stream,
+    so adding a column can never reshuffle the sample again. The one exception: a traffic
+    incident that targets ``device`` needs device drawn before the traffic is thinned, which
+    changes the order for that scenario only (the benchmark draws such incidents).
+    """
     keys = {"platform": list(PLATFORMS), "country": list(COUNTRIES), "channel": list(CHANNELS), "device": DEVICES}
     conv_plat = np.array([CONV_PLATFORM[k] for k in keys["platform"]])
     conv_ctry = np.array([CONV_COUNTRY[k] for k in keys["country"]])
@@ -155,8 +170,17 @@ def build_sessions(rng, customers: pd.DataFrame, sc: Scenario) -> tuple[pd.DataF
     lp_p /= lp_p.sum()
     IOS, AND, WEB = (keys["platform"].index(k) for k in ("ios", "android", "web"))
     EU = [keys["country"].index(c) for c, r in REGION.items() if r == "EU"]
+    extra = np.random.default_rng([sc.seed, 1])  # stream for columns added after the published sample
+    device_first = any(inc.type == "volume" and "device" in inc.segment for inc in sc.incidents)
 
-    # Expected-value accounting of every incident over the incident window.
+    def draw_device(platform: np.ndarray) -> np.ndarray:
+        n = len(platform)
+        return np.where(
+            platform == WEB, rng.choice(3, n, p=DEVICE_GIVEN_PLATFORM["web"]),
+            rng.choice([1, 2], n, p=DEVICE_GIVEN_PLATFORM["app"][1:]),
+        ).astype(np.int16)
+
+    # Each incident's impact over the incident window, in expectation given the sessions kept.
     impact = {i: {"dS": 0.0, "dO": 0.0, "dRev": 0.0} for i in range(len(sc.incidents))}
     totals = {"S": 0.0, "O": 0.0, "Rev": 0.0}
 
@@ -165,84 +189,86 @@ def build_sessions(rng, customers: pd.DataFrame, sc: Scenario) -> tuple[pd.DataF
         day = sc.start + timedelta(days=i)
         weekend = day.weekday() >= 5
         incident = day >= sc.incident_start
-        n = int(sc.daily_sessions * (0.85 if weekend else 1.0) * (1 + 0.0005 * i) * rng.normal(1.0, 0.03) * 1.5)
+        n = int(sc.daily_sessions * (0.85 if weekend else 1.0) * (1 + 0.0005 * i) * rng.normal(1.0, 0.03))
+        n = int(n * 1.5)  # oversample, then thin by holiday / incident volume effects below
 
-        # Draw every attribute first, so volume incidents can target any of them.
         d = {
             "platform": _codes(rng, PLATFORMS, n),
             "country": _codes(rng, COUNTRIES, n),
             "channel": _codes(rng, CHANNELS, n),
         }
-        d["device"] = np.where(
-            d["platform"] == WEB, rng.choice(3, n, p=DEVICE_GIVEN_PLATFORM["web"]),
-            rng.choice([1, 2], n, p=DEVICE_GIVEN_PLATFORM["app"][1:]),
-        ).astype(np.int16)
-        app_version = np.full(n, 4, np.int16)
+        if device_first:
+            d["device"] = draw_device(d["platform"])
+
+        keep_p = np.full(n, 1 / 1.5)
+        conv_mult = np.ones(n)
+        for scope, vol, conv in _holiday_multipliers(day):
+            mask = (np.ones(n, bool) if scope == "ALL" else np.isin(d["country"], EU) if scope == "EU"
+                    else d["country"] == keys["country"].index(scope))
+            keep_p[mask] *= vol
+            conv_mult[mask] *= conv
+        if incident:
+            for inc in sc.incidents:
+                if inc.type == "volume":
+                    keep_p[_match(d, keys, inc.segment)] *= inc.mult
+        keep = rng.random(n) < np.minimum(keep_p, 1.0)
+        d = {k: v[keep] for k, v in d.items()}
+        conv_mult = conv_mult[keep]
+        n = len(d["platform"])
+
+        if not device_first:
+            d["device"] = draw_device(d["platform"])
+        app_version = np.full(n, 4, np.int16)  # web
         ios, andr = d["platform"] == IOS, d["platform"] == AND
         app_version[ios] = rng.choice([0, 1], ios.sum(), p=[0.4, 0.6])
         app_version[andr] = rng.choice([2, 3], andr.sum(), p=[0.5, 0.5])
         cust_idx = rng.integers(0, sc.n_customers, n)
         tier = tier_codes[cust_idx]
 
-        q = np.full(n, 1 / 1.5)  # keep probability
         p = CONV_BASE * conv_plat[d["platform"]] * conv_ctry[d["country"]] * conv_chan[d["channel"]] * conv_tier[tier]
-        for scope, vol, conv in _holiday_multipliers(day):
-            mask = (np.ones(n, bool) if scope == "ALL" else np.isin(d["country"], EU) if scope == "EU"
-                    else d["country"] == keys["country"].index(scope))
-            q[mask] *= vol
-            p[mask] *= conv
+        p *= conv_mult
         if weekend:
             p *= 0.95
         if day.day <= 3:
             p *= 1.10  # payday
-
-        masks = {}
         if incident:
+            masks = {k: _match(d, keys, inc.segment) for k, inc in enumerate(sc.incidents)}
             for k, inc in enumerate(sc.incidents):
-                m = np.ones(n, bool)
-                for dim, value in inc.segment.items():
-                    m &= d[dim] == keys[dim].index(value)
-                masks[k] = m
-                if inc.type == "volume":
-                    q[m] *= inc.mult
-                else:
-                    p[m] *= inc.mult
-            q = np.minimum(q, 1.0)
+                if inc.type == "rate":
+                    p = np.where(masks[k], p * inc.mult, p)
             p = np.minimum(p, 1.0)
             aov = aov_tier[tier]
-            totals["S"] += q.sum()
-            totals["O"] += (q * p).sum()
-            totals["Rev"] += (q * p * aov).sum()
+            totals["S"] += n
+            totals["O"] += p.sum()
+            totals["Rev"] += (p * aov).sum()
             for k, inc in enumerate(sc.incidents):
                 m = masks[k]
-                if inc.type == "volume":  # without this incident, these sessions keep q / mult
-                    dq = q[m] - q[m] / inc.mult
-                    impact[k]["dS"] += dq.sum()
-                    impact[k]["dO"] += (dq * p[m]).sum()
-                    impact[k]["dRev"] += (dq * p[m] * aov[m]).sum()
-                else:  # without this incident, these sessions convert at p / mult
+                if inc.type == "volume":  # without it, 1 / mult times as many of these sessions
+                    dq = 1 - 1 / inc.mult
+                    impact[k]["dS"] += dq * m.sum()
+                    impact[k]["dO"] += dq * p[m].sum()
+                    impact[k]["dRev"] += dq * (p[m] * aov[m]).sum()
+                else:  # without it, these sessions convert at p / mult
                     dp = p[m] - p[m] / inc.mult
-                    impact[k]["dO"] += (q[m] * dp).sum()
-                    impact[k]["dRev"] += (q[m] * dp * aov[m]).sum()
+                    impact[k]["dO"] += dp.sum()
+                    impact[k]["dRev"] += (dp * aov[m]).sum()
+        converted = rng.random(n) < p
+        revenue = np.where(converted, rng.lognormal(np.log(aov_tier[tier]), 0.45), 0.0).round(2)
 
-        keep = rng.random(n) < q
-        converted = (rng.random(n) < p)[keep]
-        nk = int(keep.sum())
-        tier_k = tier[keep]
         frame = {
-            "session_date": np.full(nk, np.datetime64(day)),
-            "customer_id": customers["customer_id"].to_numpy()[cust_idx[keep]],
-            **{k: v[keep] for k, v in d.items()},
-            "app_version": app_version[keep],
-            "landing_page_id": rng.choice(2500, nk, p=lp_p).astype(np.int16),
-            "is_test_traffic": (rng.random(nk) < 0.0005).astype(np.int16),
-            # Outcome-derived: purchased iff converted. A circular "cause" the preflight must catch.
-            "checkout_status": np.where(converted, 0, np.where(rng.random(nk) < 0.15, 1, 2)).astype(np.int16),
+            "session_date": np.full(n, np.datetime64(day)),
+            "customer_id": customers["customer_id"].to_numpy()[cust_idx],
+            **d,
+            "app_version": app_version,
+            "landing_page_id": rng.choice(2500, n, p=lp_p).astype(np.int16),
+            "is_test_traffic": (rng.random(n) < 0.0005).astype(np.int16),
             "converted": converted.astype(np.int8),
-            "revenue": np.where(converted, rng.lognormal(np.log(aov_tier[tier_k]), 0.45), 0.0).round(2),
+            "revenue": revenue,
         }
         for name, pk in noise_p.items():
-            frame[name] = rng.choice(len(pk), nk, p=pk).astype(np.int16)
+            frame[name] = rng.choice(len(pk), n, p=pk).astype(np.int16)
+        # Outcome-derived: purchased iff converted. A circular "cause" the pre-flight must catch.
+        frame["checkout_status"] = np.where(converted, 0, np.where(extra.random(n) < 0.15, 1, 2)).astype(np.int16)
         frames.append(pd.DataFrame(frame))
 
     s = pd.concat(frames, ignore_index=True)
