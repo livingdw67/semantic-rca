@@ -130,7 +130,9 @@ def test_mechanisms_and_directions(runs, truth):
     by_seg = found(result)
     for cause in truth["causes"]:
         c = by_seg[canon(cause["segment"])]
-        assert c.driver() == cause["type"], (c.label, c.phi_by_effect)
+        # "type" is how the incident was planted (volume / rate); "mechanism" is how it shows up
+        # in a ratio metric (a traffic drop in a high-converting segment is a mix effect)
+        assert c.driver() == cause["mechanism"], (c.label, c.phi_by_effect)
         explains_drop = c.phi / result.attribution.anomaly > 0
         assert explains_drop == (cause["direction"] == "down"), c.label
 
