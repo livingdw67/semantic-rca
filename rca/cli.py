@@ -28,6 +28,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-forecast", action="store_true", help="naive baseline window instead of the forecast")
     ap.add_argument("--screen-sample", type=float, help="successive halving on a hash sample, e.g. 0.1")
     ap.add_argument("--max-depth", type=int, default=3)
+    ap.add_argument("--allow-partial", action="store_true",
+                    help="keep trailing days that look incomplete (pre-flight drops them by default)")
     ap.add_argument("--out", type=Path, help="write the Markdown report here")
     ap.add_argument("--json", action="store_true", help="print a JSON summary instead of Markdown")
     ap.add_argument("--project-dir", type=Path, default=ROOT)
@@ -48,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
         crawl = dataclasses.replace(CrawlConfig(), screen_sample=args.screen_sample, max_depth=args.max_depth)
         config = dataclasses.replace(
             PipelineConfig(), current_days=args.current_days, baseline_days=args.baseline_days,
-            use_forecast=not args.no_forecast, crawl=crawl,
+            use_forecast=not args.no_forecast, crawl=crawl, allow_partial=args.allow_partial,
         )
         result = run_rca(sl, args.metric, current_end=args.current_end, config=config)
 

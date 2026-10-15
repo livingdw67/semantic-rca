@@ -18,37 +18,37 @@
   "causes": [
     {
       "segment": "channel=email",
-      "share_of_anomaly": 0.6702269007793336,
+      "share_of_anomaly": 0.6702269007793454,
       "ci": [
-        0.886467310712356,
-        0.2476377804025082
+        0.9309975640755069,
+        0.31219648816568624
       ],
       "mechanism": "mix (traffic share): rate +21%, volume +46%"
     },
     {
       "segment": "country=DE & platform=ios",
-      "share_of_anomaly": 0.5563581375244411,
+      "share_of_anomaly": 0.556358137524436,
       "ci": [
-        0.6500170235403526,
-        0.34237004856229675
+        0.6488764335562857,
+        0.34159703672854946
       ],
       "mechanism": "rate: rate +53%, volume +2%"
     },
     {
       "segment": "country=US & platform=ios = platform=ios & region=NA",
-      "share_of_anomaly": -0.3589670560648336,
+      "share_of_anomaly": -0.35896705606483514,
       "ci": [
-        -0.10976746304481871,
-        -0.58320312926756
+        -0.13513846127981954,
+        -0.5840179437717328
       ],
       "mechanism": "rate: rate -42%, volume +6%"
     },
     {
       "segment": "channel=paid_search & country=US & platform=android = channel=paid_search & platform=android & region=NA",
-      "share_of_anomaly": 0.12178752866364538,
+      "share_of_anomaly": 0.12178752866364412,
       "ci": [
-        0.18064445513041735,
-        0.07117289903097739
+        0.17871943801961063,
+        0.06267396093433462
       ],
       "mechanism": "rate: rate +12%, volume +0%"
     }
@@ -60,7 +60,7 @@
     },
     {
       "segment": "customer_tier=pro & platform=ios",
-      "reason": "loose superset of customer_tier=pro & app_version=ios_7.2 & region=EU: the rest of it has no significant effect (-200% of the per-unit effect)"
+      "reason": "loose superset of customer_tier=pro & app_version=ios_7.2 & region=EU: the rest of it has no significant effect (-163% of the relative effect)"
     },
     {
       "segment": "customer_tier=pro & payment_method=payment_method_02 & app_version=web",
@@ -87,7 +87,10 @@
       "reason": "no unique contribution given the others (LOO +11% of anomaly, CI -16%..+39%)"
     }
   ],
-  "residual_share": 0.010594489097413584,
+  "preflight": [
+    "`checkout_status` excluded: looks derived from the outcome: 'browsed', 'abandoned_cart' never carry any of the metric"
+  ],
+  "residual_share": 0.010594489097409546,
   "statements": 10,
-  "seconds": 28.106557700026315
+  "seconds": 22.455920500000047
 }

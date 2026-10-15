@@ -56,10 +56,13 @@
   "rejected": [
     {
       "segment": "app_version=ios_7.2 & country=US = app_version=ios_7.2 & region=NA",
-      "reason": "slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (144% of the per-unit effect)"
+      "reason": "slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (138% of the relative effect)"
     }
+  ],
+  "preflight": [
+    "`checkout_status` excluded: looks derived from the outcome: rates are all ~0% or ~100% ('purchased' 100%, 'browsed' 0%, 'abandoned_cart' 0%)"
   ],
   "residual_share": -0.021629461978494316,
   "statements": 9,
-  "seconds": 63.54553519998444
+  "seconds": 51.545729200000096
 }

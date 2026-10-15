@@ -15,6 +15,7 @@ select
     cast(app_version as varchar) as app_version,
     cast(landing_page_id as varchar) as landing_page_id,
     cast(is_test_traffic as varchar) as is_test_traffic,
+    cast(checkout_status as varchar) as checkout_status,
     cast(ab_bucket as varchar) as ab_bucket,
     cast(experiment_arm as varchar) as experiment_arm,
     cast(network_type as varchar) as network_type,
@@ -27,4 +28,4 @@ select
     cast(os_locale as varchar) as os_locale,
     converted,
     revenue
-from read_parquet('data/raw/sessions.parquet')
+from read_parquet('{{ env_var("RCA_RAW_DIR", "data/raw") }}/sessions.parquet')

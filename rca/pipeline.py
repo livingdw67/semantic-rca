@@ -25,6 +25,7 @@ from rca.crawl import Crawler, CrawlConfig, CrawlResult, describe_segment
 from rca.detect import Detection, detect
 from rca.forecast import Calendar, forecast_total
 from rca.planner import SlicePlanner, Windows
+from rca.preflight import check_completeness, holiday_dates, volume_series
 from rca.semantic_client import TIME_GROUP_BY, MetricShape, SemanticLayer
 from rca.shapley import AdditiveGame, Attribution, SketchGame, attribute
 from rca.sketch import decode
@@ -44,6 +45,8 @@ class PipelineConfig:
     min_pct: float = 0.05
     sketch_precision: int = 14
     seed: int = 0
+    allow_partial: bool = False  # keep trailing days that look incomplete
+    prefer_general: bool = False  # experimental nesting rule, see shapley.attribute
 
 
 @dataclass
@@ -58,6 +61,7 @@ class RCAResult:
     seconds: float
     expected_method: str
     notes: list[str] = field(default_factory=list)
+    preflight: list[str] = field(default_factory=list)
 
 
 def run_rca(
@@ -74,6 +78,15 @@ def run_rca(
     # 1. history and windows
     daily = sl.query(shape.base_metrics)
     end = current_end or max(daily[TIME_GROUP_BY])
+    preflight: list[str] = []
+    upto = daily[daily[TIME_GROUP_BY] <= end]
+    completeness = check_completeness(upto[TIME_GROUP_BY], volume_series(upto, shape.base_metrics),
+                                      holiday_dates(calendar))
+    preflight += completeness.detail
+    if completeness.excluded_days and not config.allow_partial:
+        end = completeness.complete_end
+    elif completeness.excluded_days:
+        preflight.append("kept anyway (allow_partial)")
     hist_start = end - dt.timedelta(days=config.history_days - 1)
     windows = Windows.ending(end, config.current_days, config.baseline_days, weekly=shape.has_distinct)
     planner = SlicePlanner(sl, shape, windows)
@@ -86,7 +99,8 @@ def run_rca(
     det = detect(history, shape, windows, calendar, use_forecast=config.use_forecast)
 
     # 3. crawl
-    crawl = Crawler(sl, planner, config.crawl, contribution_se=det.contribution_se).run()
+    crawler = Crawler(sl, planner, config.crawl, contribution_se=det.contribution_se)
+    crawl = crawler.run()
     segments = [c.dims for c in crawl.candidates]
     labels = [" = ".join(describe_segment(s) for s in [c.dims, *c.equivalents]) for c in crawl.candidates]
 
@@ -104,8 +118,11 @@ def run_rca(
     else:
         attribution, method = _attribute_additive(planner, shape, windows, segments, labels, calendar,
                                                   hist_start, config)
+    preflight += crawler.preflight_notes
+    preflight += [f"`{d.split('__')[-1]}` excluded: {r.removeprefix('preflight: ')}"
+                  for d, r in crawl.screened.items() if r.startswith("preflight:")]
     return RCAResult(shape, windows, det, crawl, attribution, planner.statements, sl.queries_run - q0,
-                     time.perf_counter() - t0, method, notes)
+                     time.perf_counter() - t0, method, notes, preflight)
 
 
 # --------------------------------------------------------------------------- additive
@@ -178,7 +195,8 @@ def _attribute_additive(planner, shape, windows, segments, labels, calendar, his
     def restore():
         game.set_data(*orig)
 
-    att = attribute(game, labels, resample, restore, n_boot=config.n_boot, min_pct=config.min_pct, seed=config.seed)
+    att = attribute(game, labels, resample, restore, n_boot=config.n_boot, min_pct=config.min_pct, seed=config.seed,
+                    prefer_general=config.prefer_general)
     return att, method
 
 
@@ -226,5 +244,5 @@ def _attribute_distinct(planner, shape, segments, labels, config):
     if shape.denominator:
         comps["d"] = spec(shape.denominator)
     game = SketchGame(shape.kind, flags, comps, p)
-    att = attribute(game, labels, min_pct=config.min_pct, seed=config.seed)
+    att = attribute(game, labels, min_pct=config.min_pct, seed=config.seed, prefer_general=config.prefer_general)
     return att, f"HLL sketches (p={p}) vs each of {W} baseline weeks"

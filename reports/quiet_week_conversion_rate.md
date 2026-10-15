@@ -12,21 +12,25 @@
 
 > p = 0.92: the change is within the noise floor (±4.1%). Attribution is shown anyway.
 
+**Pre-flight data checks**
+
+- `checkout_status` excluded: looks derived from the outcome: rates are all ~0% or ~100% ('purchased' 100%, 'abandoned_cart' 0%, 'browsed' 0%)
+
 ## Root causes (-0% of the anomaly explained)
 
 No segment met the evidence bar. The change is not concentrated in any slice the crawl found.
 
 ## How this was produced
 
-- **3 warehouse statements** in 2.5s; every one is MetricFlow-compiled SQL (the planner only wraps it with window buckets and GROUPING SETS).
-- 28 dimensions crawled after screening: `sample_bucket` (meta rca: exclude); `is_test_traffic` (near-constant (top value 99.95%)); `landing_page_id` (cardinality 2,500 > 500).
+- **3 warehouse statements** in 2.6s; every one is MetricFlow-compiled SQL (the planner only wraps it with window buckets and GROUPING SETS).
+- 28 dimensions crawled after screening: `sample_bucket` (meta rca: exclude); `is_test_traffic` (one value carries 99.95% of the metric: near-constant, or derived from the outcome); `landing_page_id` (cardinality 2,500 > 500); `checkout_status` (preflight: looks derived from the outcome: rates are all ~0% or ~100% ('purchased' 100%, 'abandoned_cart' 0%, 'browsed' 0%)).
 - Aliases collapsed: `country` = `storefront`
 - Expected values for attribution: none.
 
 | Statement | Grouping sets | Rows | Seconds |
 |---|---|---|---|
-| stage 0: dimension stats |  | 32 | 0.16 |
-| stage 1: marginals | 29 | 452 | 1.31 |
+| stage 0: dimension stats |  | 33 | 0.14 |
+| stage 1: marginals | 30 | 458 | 1.48 |
 
 <details><summary>Stage 1 statement: MetricFlow SQL wrapped in GROUPING SETS</summary>
 
@@ -53,6 +57,7 @@ with rca_mf as (
 --   'session__app_version',
 --   'session__browser_family',
 --   'session__channel',
+--   'session__checkout_status',
 --   'session__country',
 --   'session__device',
 --   'session__experiment_arm',
@@ -87,6 +92,7 @@ with rca_mf as (
 --   'session__app_version',
 --   'session__browser_family',
 --   'session__channel',
+--   'session__checkout_status',
 --   'session__country',
 --   'session__device',
 --   'session__experiment_arm',
@@ -113,6 +119,7 @@ SELECT
   , subq_4.session__channel AS session__channel
   , subq_4.session__device AS session__device
   , subq_4.session__app_version AS session__app_version
+  , subq_4.session__checkout_status AS session__checkout_status
   , subq_4.session__ab_bucket AS session__ab_bucket
   , subq_4.session__experiment_arm AS session__experiment_arm
   , subq_4.session__network_type AS session__network_type
@@ -151,6 +158,7 @@ FROM (
     , channel AS session__channel
     , device AS session__device
     , app_version AS session__app_version
+    , checkout_status AS session__checkout_status
     , ab_bucket AS session__ab_bucket
     , experiment_arm AS session__experiment_arm
     , network_type AS session__network_type
@@ -179,6 +187,7 @@ GROUP BY
   , subq_4.session__channel
   , subq_4.session__device
   , subq_4.session__app_version
+  , subq_4.session__checkout_status
   , subq_4.session__ab_bucket
   , subq_4.session__experiment_arm
   , subq_4.session__network_type
@@ -202,8 +211,8 @@ GROUP BY
   , customers_src_10000.nps_band
   , customers_src_10000.payment_method
 ),
-rca_w as (select case when metric_time__day >= DATE '2026-09-18' then 0 else 1 end as rca_win, customer__acquisition_source, customer__age_band, customer__crm_cluster, customer__customer_tier, customer__email_opt_in, customer__household_size, customer__loyalty_band, customer__nps_band, customer__payment_method, customer__preferred_category, customer__score_decile, customer__signup_cohort, session__ab_bucket, session__ad_creative, session__app_version, session__browser_family, session__channel, session__country, session__device, session__experiment_arm, session__hour_band, session__network_type, session__os_locale, session__platform, session__referrer_domain, session__region, session__screen_size, session__storefront, session__utm_content, orders, sessions from rca_mf)
-select rca_win, grouping(customer__acquisition_source) as rca_g0, grouping(customer__age_band) as rca_g1, grouping(customer__crm_cluster) as rca_g2, grouping(customer__customer_tier) as rca_g3, grouping(customer__email_opt_in) as rca_g4, grouping(customer__household_size) as rca_g5, grouping(customer__loyalty_band) as rca_g6, grouping(customer__nps_band) as rca_g7, grouping(customer__payment_method) as rca_g8, grouping(customer__preferred_category) as rca_g9, grouping(customer__score_decile) as rca_g10, grouping(customer__signup_cohort) as rca_g11, grouping(session__ab_bucket) as rca_g12, grouping(session__ad_creative) as rca_g13, grouping(session__app_version) as rca_g14, grouping(session__browser_family) as rca_g15, grouping(session__channel) as rca_g16, grouping(session__country) as rca_g17, grouping(session__device) as rca_g18, grouping(session__experiment_arm) as rca_g19, grouping(session__hour_band) as rca_g20, grouping(session__network_type) as rca_g21, grouping(session__os_locale) as rca_g22, grouping(session__platform) as rca_g23, grouping(session__referrer_domain) as rca_g24, grouping(session__region) as rca_g25, grouping(session__screen_size) as rca_g26, grouping(session__storefront) as rca_g27, grouping(session__utm_content) as rca_g28, customer__acquisition_source, customer__age_band, customer__crm_cluster, customer__customer_tier, customer__email_opt_in, customer__household_size, customer__loyalty_band, customer__nps_band, customer__payment_method, customer__preferred_category, customer__score_decile, customer__signup_cohort, session__ab_bucket, session__ad_creative, session__app_version, session__browser_family, session__channel, session__country, session__device, session__experiment_arm, session__hour_band, session__network_type, session__os_locale, session__platform, session__referrer_domain, session__region, session__screen_size, session__storefront, session__utm_content, sum(orders) as n, sum(sessions) as d
+rca_w as (select case when metric_time__day >= DATE '2026-09-18' then 0 else 1 end as rca_win, customer__acquisition_source, customer__age_band, customer__crm_cluster, customer__customer_tier, customer__email_opt_in, customer__household_size, customer__loyalty_band, customer__nps_band, customer__payment_method, customer__preferred_category, customer__score_decile, customer__signup_cohort, session__ab_bucket, session__ad_creative, session__app_version, session__browser_family, session__channel, session__checkout_status, session__country, session__device, session__experiment_arm, session__hour_band, session__network_type, session__os_locale, session__platform, session__referrer_domain, session__region, session__screen_size, session__storefront, session__utm_content, orders, sessions from rca_mf)
+select rca_win, grouping(customer__acquisition_source) as rca_g0, grouping(customer__age_band) as rca_g1, grouping(customer__crm_cluster) as rca_g2, grouping(customer__customer_tier) as rca_g3, grouping(customer__email_opt_in) as rca_g4, grouping(customer__household_size) as rca_g5, grouping(customer__loyalty_band) as rca_g6, grouping(customer__nps_band) as rca_g7, grouping(customer__payment_method) as rca_g8, grouping(customer__preferred_category) as rca_g9, grouping(customer__score_decile) as rca_g10, grouping(customer__signup_cohort) as rca_g11, grouping(session__ab_bucket) as rca_g12, grouping(session__ad_creative) as rca_g13, grouping(session__app_version) as rca_g14, grouping(session__browser_family) as rca_g15, grouping(session__channel) as rca_g16, grouping(session__checkout_status) as rca_g17, grouping(session__country) as rca_g18, grouping(session__device) as rca_g19, grouping(session__experiment_arm) as rca_g20, grouping(session__hour_band) as rca_g21, grouping(session__network_type) as rca_g22, grouping(session__os_locale) as rca_g23, grouping(session__platform) as rca_g24, grouping(session__referrer_domain) as rca_g25, grouping(session__region) as rca_g26, grouping(session__screen_size) as rca_g27, grouping(session__storefront) as rca_g28, grouping(session__utm_content) as rca_g29, customer__acquisition_source, customer__age_band, customer__crm_cluster, customer__customer_tier, customer__email_opt_in, customer__household_size, customer__loyalty_band, customer__nps_band, customer__payment_method, customer__preferred_category, customer__score_decile, customer__signup_cohort, session__ab_bucket, session__ad_creative, session__app_version, session__browser_family, session__channel, session__checkout_status, session__country, session__device, session__experiment_arm, session__hour_band, session__network_type, session__os_locale, session__platform, session__referrer_domain, session__region, session__screen_size, session__storefront, session__utm_content, sum(orders) as n, sum(sessions) as d
 from rca_w
 where rca_win between 0 and 1
 group by grouping sets (
@@ -231,6 +240,7 @@ group by grouping sets (
     (rca_win, session__region),
     (rca_win, customer__customer_tier),
     (rca_win, customer__nps_band),
+    (rca_win, session__checkout_status),
     (rca_win, session__device),
     (rca_win, session__network_type),
     (rca_win, session__platform),

@@ -46,6 +46,12 @@ semantic_models:
         description: High-cardinality identifier
       - name: is_test_traffic
         type: categorical
+      - name: checkout_status
+        type: categorical
+        description: purchased / abandoned_cart / browsed (derived from the outcome)
+        config:
+          meta:
+            rca: outcome
       - name: ab_bucket
         type: categorical
       - name: experiment_arm

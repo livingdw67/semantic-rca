@@ -10,14 +10,18 @@
 
 **Anomaly vs expected: -15.5%** (z = -6.1, p = 7.8e-10; noise floor ±5.5%). Calendar effects (seasonality, holidays, trend) account for +3.0% on their own, so the naive comparison understates the incident.
 
+**Pre-flight data checks**
+
+- `checkout_status` excluded: looks derived from the outcome: 'browsed', 'abandoned_cart' never carry any of the metric
+
 ## Root causes (99% of the anomaly explained)
 
 | # | Segment | Share of anomaly | 95% CI | Mechanism | Share of volume |
 |---|---|---|---|---|---|
-| 1 | channel=email | **+67%** | +25% .. +89% | mix (traffic share): rate +21%, volume +46% | 17.9% |
+| 1 | channel=email | **+67%** | +31% .. +93% | mix (traffic share): rate +21%, volume +46% | 17.9% |
 | 2 | country=DE & platform=ios | **+56%** | +34% .. +65% | rate: rate +53%, volume +2% | 7.2% |
-| 3 | country=US & platform=ios = platform=ios & region=NA **(offsetting)** | **-36%** | -58% .. -11% | rate: rate -42%, volume +6% | 16.3% |
-| 4 | channel=paid_search & country=US & platform=android = channel=paid_search & platform=android & region=NA | **+12%** | +7% .. +18% | rate: rate +12%, volume +0% | 3.1% |
+| 3 | country=US & platform=ios = platform=ios & region=NA **(offsetting)** | **-36%** | -58% .. -14% | rate: rate -42%, volume +6% | 16.3% |
+| 4 | channel=paid_search & country=US & platform=android = channel=paid_search & platform=android & region=NA | **+12%** | +6% .. +18% | rate: rate +12%, volume +0% | 3.1% |
 
 Everything else: +1% of the anomaly.
 
@@ -28,7 +32,7 @@ Negative shares moved *against* the anomaly: they masked part of it.
 | Segment | Why |
 |---|---|
 | customer_tier=pro & app_version=ios_7.2 & region=EU | no unique contribution given the others (LOO -1% of anomaly, CI -11%..+9%) |
-| customer_tier=pro & platform=ios | loose superset of customer_tier=pro & app_version=ios_7.2 & region=EU: the rest of it has no significant effect (-200% of the per-unit effect) |
+| customer_tier=pro & platform=ios | loose superset of customer_tier=pro & app_version=ios_7.2 & region=EU: the rest of it has no significant effect (-163% of the relative effect) |
 | customer_tier=pro & payment_method=payment_method_02 & app_version=web | no unique contribution given the others (LOO +1% of anomaly, CI -7%..+9%) |
 | customer_tier=pro & app_version=web & channel=paid_search | no unique contribution given the others (LOO +17% of anomaly, CI -15%..+49%) |
 | customer_tier=pro & app_version=web & browser_family=browser_family_01 | no unique contribution given the others (LOO -1% of anomaly, CI -2%..+0%) |
@@ -38,22 +42,22 @@ Negative shares moved *against* the anomaly: they masked part of it.
 
 ## How this was produced
 
-- **10 warehouse statements** in 28.1s; every one is MetricFlow-compiled SQL (the planner only wraps it with window buckets and GROUPING SETS).
-- 28 dimensions crawled after screening: `sample_bucket` (meta rca: exclude); `is_test_traffic` (near-constant (top value 99.95%)); `landing_page_id` (cardinality 2,500 > 500).
+- **10 warehouse statements** in 22.5s; every one is MetricFlow-compiled SQL (the planner only wraps it with window buckets and GROUPING SETS).
+- 28 dimensions crawled after screening: `sample_bucket` (meta rca: exclude); `is_test_traffic` (one value carries 99.95% of the metric: near-constant, or derived from the outcome); `landing_page_id` (cardinality 2,500 > 500); `checkout_status` (preflight: looks derived from the outcome: 'browsed', 'abandoned_cart' never carry any of the metric).
 - Aliases collapsed: `country` = `storefront`
 - Expected values for attribution: per-cell forecasts (57/69 cells modelled, rest scaled).
 
 | Statement | Grouping sets | Rows | Seconds |
 |---|---|---|---|
-| stage 0: dimension stats |  | 32 | 0.12 |
-| stage 1: marginals | 29 | 452 | 1.59 |
-| stage 2: level 2 | 48 | 5,816 | 3.84 |
-| stage 2: level 2 | 48 | 1,566 | 3.21 |
-| stage 2: level 2 | 6 | 92 | 0.22 |
-| stage 2: level 3 | 48 | 16,006 | 5.48 |
-| stage 2: level 3 | 29 | 2,484 | 2.94 |
-| stage 2b: heredity closure | 3 | 106 | 0.15 |
-| stage 3: flag cube (daily) |  | 20,603 | 2.89 |
+| stage 0: dimension stats |  | 33 | 0.10 |
+| stage 1: marginals | 30 | 458 | 1.30 |
+| stage 2: level 2 | 48 | 5,816 | 2.82 |
+| stage 2: level 2 | 48 | 1,566 | 2.07 |
+| stage 2: level 2 | 6 | 92 | 0.13 |
+| stage 2: level 3 | 48 | 16,006 | 4.64 |
+| stage 2: level 3 | 29 | 2,484 | 2.15 |
+| stage 2b: heredity closure | 3 | 106 | 0.11 |
+| stage 3: flag cube (daily) |  | 20,603 | 2.05 |
 
 <details><summary>Stage 1 statement: MetricFlow SQL wrapped in GROUPING SETS</summary>
 
@@ -80,6 +84,7 @@ with rca_mf as (
 --   'session__app_version',
 --   'session__browser_family',
 --   'session__channel',
+--   'session__checkout_status',
 --   'session__country',
 --   'session__device',
 --   'session__experiment_arm',
@@ -114,6 +119,7 @@ with rca_mf as (
 --   'session__app_version',
 --   'session__browser_family',
 --   'session__channel',
+--   'session__checkout_status',
 --   'session__country',
 --   'session__device',
 --   'session__experiment_arm',
@@ -140,6 +146,7 @@ SELECT
   , subq_4.session__channel AS session__channel
   , subq_4.session__device AS session__device
   , subq_4.session__app_version AS session__app_version
+  , subq_4.session__checkout_status AS session__checkout_status
   , subq_4.session__ab_bucket AS session__ab_bucket
   , subq_4.session__experiment_arm AS session__experiment_arm
   , subq_4.session__network_type AS session__network_type
@@ -178,6 +185,7 @@ FROM (
     , channel AS session__channel
     , device AS session__device
     , app_version AS session__app_version
+    , checkout_status AS session__checkout_status
     , ab_bucket AS session__ab_bucket
     , experiment_arm AS session__experiment_arm
     , network_type AS session__network_type
@@ -206,6 +214,7 @@ GROUP BY
   , subq_4.session__channel
   , subq_4.session__device
   , subq_4.session__app_version
+  , subq_4.session__checkout_status
   , subq_4.session__ab_bucket
   , subq_4.session__experiment_arm
   , subq_4.session__network_type
@@ -229,8 +238,8 @@ GROUP BY
   , customers_src_10000.nps_band
   , customers_src_10000.payment_method
 ),
-rca_w as (select case when metric_time__day >= DATE '2026-10-02' then 0 else 1 end as rca_win, customer__acquisition_source, customer__age_band, customer__crm_cluster, customer__customer_tier, customer__email_opt_in, customer__household_size, customer__loyalty_band, customer__nps_band, customer__payment_method, customer__preferred_category, customer__score_decile, customer__signup_cohort, session__ab_bucket, session__ad_creative, session__app_version, session__browser_family, session__channel, session__country, session__device, session__experiment_arm, session__hour_band, session__network_type, session__os_locale, session__platform, session__referrer_domain, session__region, session__screen_size, session__storefront, session__utm_content, revenue, sessions from rca_mf)
-select rca_win, grouping(customer__acquisition_source) as rca_g0, grouping(customer__age_band) as rca_g1, grouping(customer__crm_cluster) as rca_g2, grouping(customer__customer_tier) as rca_g3, grouping(customer__email_opt_in) as rca_g4, grouping(customer__household_size) as rca_g5, grouping(customer__loyalty_band) as rca_g6, grouping(customer__nps_band) as rca_g7, grouping(customer__payment_method) as rca_g8, grouping(customer__preferred_category) as rca_g9, grouping(customer__score_decile) as rca_g10, grouping(customer__signup_cohort) as rca_g11, grouping(session__ab_bucket) as rca_g12, grouping(session__ad_creative) as rca_g13, grouping(session__app_version) as rca_g14, grouping(session__browser_family) as rca_g15, grouping(session__channel) as rca_g16, grouping(session__country) as rca_g17, grouping(session__device) as rca_g18, grouping(session__experiment_arm) as rca_g19, grouping(session__hour_band) as rca_g20, grouping(session__network_type) as rca_g21, grouping(session__os_locale) as rca_g22, grouping(session__platform) as rca_g23, grouping(session__referrer_domain) as rca_g24, grouping(session__region) as rca_g25, grouping(session__screen_size) as rca_g26, grouping(session__storefront) as rca_g27, grouping(session__utm_content) as rca_g28, customer__acquisition_source, customer__age_band, customer__crm_cluster, customer__customer_tier, customer__email_opt_in, customer__household_size, customer__loyalty_band, customer__nps_band, customer__payment_method, customer__preferred_category, customer__score_decile, customer__signup_cohort, session__ab_bucket, session__ad_creative, session__app_version, session__browser_family, session__channel, session__country, session__device, session__experiment_arm, session__hour_band, session__network_type, session__os_locale, session__platform, session__referrer_domain, session__region, session__screen_size, session__storefront, session__utm_content, sum(revenue) as n, sum(sessions) as d
+rca_w as (select case when metric_time__day >= DATE '2026-10-02' then 0 else 1 end as rca_win, customer__acquisition_source, customer__age_band, customer__crm_cluster, customer__customer_tier, customer__email_opt_in, customer__household_size, customer__loyalty_band, customer__nps_band, customer__payment_method, customer__preferred_category, customer__score_decile, customer__signup_cohort, session__ab_bucket, session__ad_creative, session__app_version, session__browser_family, session__channel, session__checkout_status, session__country, session__device, session__experiment_arm, session__hour_band, session__network_type, session__os_locale, session__platform, session__referrer_domain, session__region, session__screen_size, session__storefront, session__utm_content, revenue, sessions from rca_mf)
+select rca_win, grouping(customer__acquisition_source) as rca_g0, grouping(customer__age_band) as rca_g1, grouping(customer__crm_cluster) as rca_g2, grouping(customer__customer_tier) as rca_g3, grouping(customer__email_opt_in) as rca_g4, grouping(customer__household_size) as rca_g5, grouping(customer__loyalty_band) as rca_g6, grouping(customer__nps_band) as rca_g7, grouping(customer__payment_method) as rca_g8, grouping(customer__preferred_category) as rca_g9, grouping(customer__score_decile) as rca_g10, grouping(customer__signup_cohort) as rca_g11, grouping(session__ab_bucket) as rca_g12, grouping(session__ad_creative) as rca_g13, grouping(session__app_version) as rca_g14, grouping(session__browser_family) as rca_g15, grouping(session__channel) as rca_g16, grouping(session__checkout_status) as rca_g17, grouping(session__country) as rca_g18, grouping(session__device) as rca_g19, grouping(session__experiment_arm) as rca_g20, grouping(session__hour_band) as rca_g21, grouping(session__network_type) as rca_g22, grouping(session__os_locale) as rca_g23, grouping(session__platform) as rca_g24, grouping(session__referrer_domain) as rca_g25, grouping(session__region) as rca_g26, grouping(session__screen_size) as rca_g27, grouping(session__storefront) as rca_g28, grouping(session__utm_content) as rca_g29, customer__acquisition_source, customer__age_band, customer__crm_cluster, customer__customer_tier, customer__email_opt_in, customer__household_size, customer__loyalty_band, customer__nps_band, customer__payment_method, customer__preferred_category, customer__score_decile, customer__signup_cohort, session__ab_bucket, session__ad_creative, session__app_version, session__browser_family, session__channel, session__checkout_status, session__country, session__device, session__experiment_arm, session__hour_band, session__network_type, session__os_locale, session__platform, session__referrer_domain, session__region, session__screen_size, session__storefront, session__utm_content, sum(revenue) as n, sum(sessions) as d
 from rca_w
 where rca_win between 0 and 1
 group by grouping sets (
@@ -258,6 +267,7 @@ group by grouping sets (
     (rca_win, session__region),
     (rca_win, customer__customer_tier),
     (rca_win, customer__nps_band),
+    (rca_win, session__checkout_status),
     (rca_win, session__device),
     (rca_win, session__network_type),
     (rca_win, session__platform),
@@ -269,7 +279,7 @@ group by grouping sets (
 
 <details><summary>Attribution log</summary>
 
-- nesting customer_tier=pro & app_version=ios_7.2 & region=EU in customer_tier=pro & platform=ios: rho=-2.00 (CI -11.93..7.94) -> superset
+- nesting customer_tier=pro & app_version=ios_7.2 & region=EU in customer_tier=pro & platform=ios: rho=-1.63 (CI -9.77..6.50) -> superset
 - eliminated customer_tier=pro & app_version=web & os_locale=os_locale_07: no unique contribution given the others (LOO -0% of anomaly, CI -1%..+0%)
 - eliminated customer_tier=pro & app_version=web & browser_family=browser_family_01: no unique contribution given the others (LOO -1% of anomaly, CI -2%..+0%)
 - eliminated customer_tier=pro & payment_method=payment_method_02 & app_version=web: no unique contribution given the others (LOO +1% of anomaly, CI -7%..+9%)

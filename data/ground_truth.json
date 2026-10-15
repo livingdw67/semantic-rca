@@ -10,14 +10,30 @@
         "country": "DE"
       },
       "type": "rate",
-      "direction": "down"
+      "mult": 0.1,
+      "direction": "down",
+      "relative_impact": {
+        "conversion_rate": -0.07990963574367932,
+        "orders": -0.07990963574367932,
+        "revenue": -0.08086304173850517,
+        "revenue_per_session": -0.08086304173850513
+      },
+      "mechanism": "rate"
     },
     {
       "segment": {
         "channel": "email"
       },
-      "type": "mix",
-      "direction": "down"
+      "type": "volume",
+      "mult": 0.5,
+      "direction": "down",
+      "relative_impact": {
+        "conversion_rate": -0.08950992768883739,
+        "orders": -0.19798099382981024,
+        "revenue": -0.1961995943661177,
+        "revenue_per_session": -0.08788982485676504
+      },
+      "mechanism": "mix"
     },
     {
       "segment": {
@@ -26,7 +42,15 @@
         "channel": "paid_search"
       },
       "type": "rate",
-      "direction": "down"
+      "mult": 0.05,
+      "direction": "down",
+      "relative_impact": {
+        "conversion_rate": -0.03262667836717585,
+        "orders": -0.03262667836717571,
+        "revenue": -0.032467378734943986,
+        "revenue_per_session": -0.032467378734943965
+      },
+      "mechanism": "rate"
     },
     {
       "segment": {
@@ -34,7 +58,15 @@
         "country": "US"
       },
       "type": "rate",
-      "direction": "up"
+      "mult": 1.3,
+      "direction": "up",
+      "relative_impact": {
+        "conversion_rate": 0.06307362157963203,
+        "orders": 0.06307362157963216,
+        "revenue": 0.06259419187541919,
+        "revenue_per_session": 0.06259419187541916
+      },
+      "mechanism": "rate"
     }
   ],
   "equivalent_dimensions": [
@@ -52,6 +84,8 @@
   "screen_out": [
     "landing_page_id",
     "is_test_traffic",
-    "sample_bucket"
-  ]
+    "sample_bucket",
+    "checkout_status"
+  ],
+  "sessions": 3386453
 }

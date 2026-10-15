@@ -12,4 +12,4 @@ select
     cast(crm_cluster as varchar) as crm_cluster,
     cast(nps_band as varchar) as nps_band,
     cast(payment_method as varchar) as payment_method
-from read_parquet('data/raw/customers.parquet')
+from read_parquet('{{ env_var("RCA_RAW_DIR", "data/raw") }}/customers.parquet')

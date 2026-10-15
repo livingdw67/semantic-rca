@@ -122,6 +122,12 @@ class AdditiveGame:
         """Per-cell volume used for supports (expected denominator, or expected level)."""
         return self.dh if self.kind == "ratio" else np.abs(self.nh)
 
+    def scale(self) -> np.ndarray:
+        """Per-cell size that effects are compared relative to: the expected numerator. A
+        multiplicative incident (conversion x0.4) then has the same relative effect in every
+        slice, whatever each slice's base rate."""
+        return np.abs(self.nh)
+
 
 class SketchGame:
     """Counterfactual game for count-distinct components using HLL registers.
@@ -230,7 +236,12 @@ class SketchGame:
         return self.value_by_week(coalitions).mean(axis=0)
 
     def volume(self) -> np.ndarray:
-        spec = self.comps.get("d", self.comps["n"])
+        return self._size(self.comps.get("d", self.comps["n"]))
+
+    def scale(self) -> np.ndarray:
+        return self._size(self.comps["n"])
+
+    def _size(self, spec) -> np.ndarray:
         kind, cur, _ = spec
         if kind == "additive":
             return cur
@@ -332,17 +343,20 @@ def attribute(
     min_pct: float = 0.05,
     seed: int = 0,
     equivalent_jaccard: float = 0.95,
+    prefer_general: bool = False,
 ) -> Attribution:
     """Clean the candidate set, then compute Owen values with uncertainty.
 
     ``resample(rng)`` mutates the game into one bootstrap replicate; ``restore()`` undoes it.
-    For SketchGame, uncertainty comes from the W baseline weeks instead.
+    For SketchGame, uncertainty comes from the W baseline weeks instead. ``prefer_general``
+    switches on an experimental nesting rule (see step 2).
     """
     rng = np.random.default_rng(seed)
     log: list[str] = []
     K = game.K
     E = len(game.effects)
     vol = game.volume()
+    size = game.scale()
     active = vol > 0
     flags = game.flags
 
@@ -407,7 +421,9 @@ def attribute(
 
     # 2. Nesting by effect homogeneity. The rest of B (B minus A) decides:
     #    not significantly different from 0  -> B is a loose superset: keep the specific A
-    #    same per-unit effect as A (rho > .67) -> A is a slice of a homogeneous B: keep B
+    #    same relative effect as A (rho ~ 1)    -> A is a slice of a homogeneous B: keep B
+    #    Effects are relative to each part's expected numerator, so a multiplicative incident
+    #    (conversion x0.4) has rho = 1 in every slice, whatever the slices' base rates.
     #    The significance test matters: harvested sub-cells suffer from the winner's curse
     #    (they were selected *because* noise inflated them), which biases rho toward 0.
     alive = list(cands)
@@ -438,13 +454,13 @@ def attribute(
             rows = rows_for([ctx, ctx + [a], ctx + [b]])
             point = game.value(rows)
             samples = draws(rows, n_quick)
-            vol_a = vol[fa & ~covered].sum()
-            vol_rest = vol[fb & ~fa & ~covered].sum()
+            vol_a = size[fa & ~covered].sum()
+            vol_rest = size[fb & ~fa & ~covered].sum()
             eff_a = point[1] - point[0]
             if eff_a == 0 or vol_rest == 0 or vol_a == 0:
                 continue
 
-            def rho_of(v):  # per-unit effect of B minus A, relative to A's
+            def rho_of(v):  # relative effect of B minus A, as a multiple of A's
                 with np.errstate(divide="ignore", invalid="ignore"):
                     return ((v[..., 2] - v[..., 1]) / vol_rest) / ((v[..., 1] - v[..., 0]) / vol_a)
 
@@ -456,7 +472,19 @@ def attribute(
             has_one, has_zero = lo[0] <= 1 <= hi[0], lo[0] <= 0 <= hi[0]
             # Decide on the interval, not the point: a homogeneous effect's slices have rho ~ 1
             # but a noisy point estimate, and a hard cut-off would flip the answer run to run.
-            if (has_one and not has_zero) or (has_one and has_zero and rho >= 0.5):
+            a_is_noise = False
+            if prefer_general:
+                # Experimental: when the data cannot tell the two apart, prefer the general segment
+                # B, which has more data and makes the weaker claim. Also when A's own effect can't
+                # be told apart from zero, since rho divides by it and then swings wildly. Not the
+                # default: on the showcase it keeps a broad noise segment (pro & ios) alive, which
+                # absorbs email's unique contribution to revenue per session.
+                e_lo, e_hi = interval((samples[..., 1] - samples[..., 0]).reshape(-1, 1), np.array([eff_a]), z=1.96)
+                a_is_noise = e_lo[0] <= 0 <= e_hi[0]
+                is_slice = a_is_noise or has_one
+            else:
+                is_slice = (has_one and not has_zero) or (has_one and has_zero and rho >= 0.5)
+            if is_slice:
                 verdict = "slice"
             elif has_zero:
                 verdict = "superset"
@@ -464,25 +492,38 @@ def attribute(
                 verdict = "both"
             if verdict == "slice":
                 alive.remove(a)
-                a.status, a.reason = "rejected", (f"slice of {b.label}: the rest of it moves the same way "
-                                                  f"({rho:.0%} of the per-unit effect)")
+                a.status, a.reason = "rejected", (
+                    f"slice of {b.label}: its own effect is indistinguishable from zero" if a_is_noise else
+                    f"slice of {b.label}: the rest of it moves the same way ({rho:.0%} of the relative effect)")
             elif verdict == "superset":
                 alive.remove(b)
                 b.status, b.reason = "rejected", (f"loose superset of {a.label}: the rest of it has no "
-                                                  f"significant effect ({rho:.0%} of the per-unit effect)")
+                                                  f"significant effect ({rho:.0%} of the relative effect)")
             rest_zero = verdict == "superset"
-            log.append(f"nesting {a.label} in {b.label}: rho={rho:.2f} (CI {lo[0]:.2f}..{hi[0]:.2f}) -> {verdict}")
+            log.append(f"nesting {a.label} in {b.label}: rho={rho:.2f} (CI {lo[0]:.2f}..{hi[0]:.2f})"
+                       f"{', inner effect ~0' if a_is_noise else ''} -> {verdict}")
 
     # Nested pairs that both survived describe different effects (a concentrated core inside a
     # broader, weaker one). Make them disjoint so leave-one-out is meaningful for both:
-    # otherwise the inner one has zero unique contribution by construction.
-    for a in alive:
+    # otherwise the inner one has zero unique contribution by construction. Recomputed after
+    # every elimination: once the core is eliminated, the broader segment gets its cells back.
+    whole = flags.copy()
+    names = {c.column: c.label for c in alive}
+
+    def make_disjoint() -> None:
         for b in alive:
-            fa, fb = cells(a), cells(b)
-            if a is not b and fa.any() and not (fa & ~fb).any() and (fb & ~fa).any():
-                flags[:, b.column] &= ~flags[:, a.column]
-                b.label = f"{b.label} (excluding {a.label})"
+            fb = whole[:, b.column] & active
+            inner = [a for a in alive if a is not b and (fa := whole[:, a.column] & active).any()
+                     and not (fa & ~fb).any() and (fb & ~fa).any()]
+            flags[:, b.column] = whole[:, b.column]
+            for a in inner:
+                flags[:, b.column] &= ~whole[:, a.column]
+            label = names[b.column] + "".join(f" (excluding {names[a.column]})" for a in inner)
+            if label != b.label:
+                b.label = label
                 log.append(f"disjoint: {b.label}")
+
+    make_disjoint()
 
     # 3. Backward elimination by leave-one-out contribution
     def loo_rows(cs: list[Candidate]) -> np.ndarray:
@@ -507,6 +548,7 @@ def attribute(
         c.reason = (f"no unique contribution given the others (LOO {loo[i] / anomaly:+.0%} of anomaly, "
                     f"CI {lo_p:+.0%}..{hi_p:+.0%})" if anomaly else "no contribution")
         log.append(f"eliminated {c.label}: {c.reason}")
+        make_disjoint()
 
     # 4. Owen values over survivors
     if alive:

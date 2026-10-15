@@ -18,37 +18,37 @@
   "causes": [
     {
       "segment": "channel=email",
-      "share_of_anomaly": 0.5910975884851406,
+      "share_of_anomaly": 0.5910975884851415,
       "ci": [
-        0.8013044190699238,
-        0.40246052511933117
+        0.7552272705603084,
+        0.40143637069013016
       ],
       "mechanism": "mix (traffic share): rate +14%, volume +45%"
     },
     {
       "segment": "country=DE & platform=ios",
-      "share_of_anomaly": 0.4503760012111606,
+      "share_of_anomaly": 0.45037600121116045,
       "ci": [
-        0.5583532706795453,
-        0.30089491090481874
+        0.5581517703581598,
+        0.30081642140484494
       ],
       "mechanism": "rate: rate +44%, volume +1%"
     },
     {
       "segment": "country=US & platform=ios = platform=ios & region=NA",
-      "share_of_anomaly": -0.32186633324601965,
+      "share_of_anomaly": -0.3218663332460199,
       "ci": [
-        -0.12005931074360943,
-        -0.5127372700540508
+        -0.1339373902997294,
+        -0.5023903099918708
       ],
       "mechanism": "rate: rate -40%, volume +8%"
     },
     {
       "segment": "channel=paid_search & country=US & platform=android = channel=paid_search & platform=android & region=NA",
-      "share_of_anomaly": 0.1753150950460583,
+      "share_of_anomaly": 0.17531509504605802,
       "ci": [
-        0.21735138252333736,
-        0.13125415919713876
+        0.23231560447138125,
+        0.13223050303860623
       ],
       "mechanism": "rate: rate +17%, volume +0%"
     }
@@ -56,15 +56,15 @@
   "rejected": [
     {
       "segment": "platform=ios & region=EU",
-      "reason": "loose superset of country=DE & platform=ios: the rest of it has no significant effect (5% of the per-unit effect)"
+      "reason": "loose superset of country=DE & platform=ios: the rest of it has no significant effect (5% of the relative effect)"
     },
     {
       "segment": "app_version=ios_7.2 & country=US = app_version=ios_7.2 & region=NA",
-      "reason": "slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (144% of the per-unit effect)"
+      "reason": "slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (158% of the relative effect)"
     },
     {
       "segment": "app_version=ios_7.1 & country=US = app_version=ios_7.1 & region=NA",
-      "reason": "slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (70% of the per-unit effect)"
+      "reason": "slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (63% of the relative effect)"
     },
     {
       "segment": "ab_bucket=ab_bucket_01 & channel=organic",
@@ -87,7 +87,10 @@
       "reason": "no unique contribution given the others (LOO -1% of anomaly, CI -3%..+2%)"
     }
   ],
-  "residual_share": 0.10507764850365997,
+  "preflight": [
+    "`checkout_status` excluded: looks derived from the outcome: rates are all ~0% or ~100% ('purchased' 100%, 'browsed' 0%, 'abandoned_cart' 0%)"
+  ],
+  "residual_share": 0.10507764850365986,
   "statements": 8,
-  "seconds": 21.511850200011395
+  "seconds": 17.013346200000342
 }

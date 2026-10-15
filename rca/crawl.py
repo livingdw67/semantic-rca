@@ -14,6 +14,8 @@ Scoring. A segment's *surplus* is its share of the change minus its share of vol
 is 57% of traffic and carries 63% of the drop is unremarkable, because every cause spreads across
 it in proportion to its size. Surplus is z-tested against the forecast's noise floor
 (``Detection.contribution_se``), so random drift in big noise segments does not enter the beam.
+For ratio metrics the mix effect is also tested on its own, so a traffic shift is not hidden by
+the same segment's rate drifting the other way.
 
 Why best-first and not a stochastic bandit: a warehouse query returns its exact answer the first
 time, so there is no reward noise to average over. The bandit framing *is* right for screening on
@@ -32,6 +34,7 @@ import pandas as pd
 
 from rca.attribution import Cause, _row_to_cause, _volume_share, decompose
 from rca.planner import SlicePlanner
+from rca.preflight import screen_dimensions
 from rca.semantic_client import SemanticLayer, pretty_dimension
 
 RAW = ("n0", "n1", "d0", "d1")
@@ -43,6 +46,7 @@ class CrawlConfig:
     near_constant: float = 0.995
     min_surplus: float = 0.05  # |pct_of_change - share| for a node to enter the beam ...
     min_z: float = 3.0  # ... and its z against the noise floor
+    score: str = "surplus"  # or "excess" (experimental, see Crawler._decompose)
     beam: int = 10
     max_depth: int = 3
     max_sets_per_level: int = 300
@@ -117,6 +121,7 @@ class Crawler:
         self.contribution_se = contribution_se
         self.tables: dict[frozenset[str], pd.DataFrame] = {}
         self.total_change = float("nan")
+        self.preflight_notes: list[str] = []
 
     # ------------------------------------------------------------------ scoring
     def _decompose(self, raw: dict[frozenset[str], pd.DataFrame]) -> dict[frozenset[str], pd.DataFrame]:
@@ -125,24 +130,44 @@ class Crawler:
         for s, t in raw.items():
             df = decompose(t, sorted(s), self.shape.kind, base, cur)
             df["surplus"] = df["pct_of_change"] - df["share0"]
+            # Experimental, CrawlConfig.score = "excess": how far the share of the change falls
+            # outside [0, share of volume]. A segment in between simply did not move: when email
+            # collapses, organic carries none of the drop without being a cause, and scoring it by
+            # surplus fills the beam with such complements. Not the default: an offsetting segment
+            # then scores |pct| instead of |pct| + share, and on the showcase the US-iOS win drops
+            # out of the beam for orders, revenue and buyer_rate.
+            if self.cfg.score == "excess":
+                pct, share = df["pct_of_change"], df["share0"]
+                df["beam_score"] = np.where(pct > share, pct - share, np.where(pct < 0, pct, 0.0))
+            else:
+                df["beam_score"] = df["surplus"]
             # Each table's own total: for count-distinct metrics, session-level dimensions overlap
             # (one customer, several screen sizes), so totals differ from table to table.
             total = float(df["contribution"].sum())
             if self.contribution_se is not None and total:
                 se = self.contribution_se(df["share0"].to_numpy()) / abs(total)
-                df["z"] = np.abs(df["surplus"]) / np.maximum(se, 1e-12)
+                df["z"] = np.abs(df["beam_score"]) / np.maximum(se, 1e-12)
+                if "mix_effect" in df:
+                    # A traffic shift is a mechanism of its own, expected to be zero, so it is tested
+                    # on its own too: email losing half its traffic while converting a little better
+                    # by chance has a large mix effect but an unremarkable net surplus.
+                    df["mix_share"] = df["mix_effect"].fillna(0.0) / total
+                    df["z_mix"] = np.abs(df["mix_share"]) / np.maximum(se, 1e-12)
             else:
                 df["z"] = np.inf
             out[s] = df
         return out
 
     def _hot(self, df: pd.DataFrame) -> pd.Series:
-        return (df["surplus"].abs() >= self.cfg.min_surplus) & (df["z"] >= self.cfg.min_z)
+        hot = (df["beam_score"].abs() >= self.cfg.min_surplus) & (df["z"] >= self.cfg.min_z)
+        if "z_mix" in df:
+            hot |= (df["mix_share"].abs() >= self.cfg.min_surplus) & (df["z_mix"] >= self.cfg.min_z)
+        return hot
 
     def _cause(self, row: pd.Series) -> Cause:
         c = _row_to_cause(row, self.shape.kind)
         c.score = float(row["surplus"])
-        c.z = float(row["z"])
+        c.z = max(float(row["z"]), float(row.get("z_mix", 0.0)))
         c.raw = {k: float(row[k]) for k in RAW if k in row}
         return c
 
@@ -238,7 +263,8 @@ class Crawler:
             if r["cardinality"] > cfg.max_card:
                 screened[r["dimension"]] = f"cardinality {int(r['cardinality']):,} > {cfg.max_card}"
             elif r["cardinality"] <= 1 or (pd.notna(r["top_share"]) and r["top_share"] >= cfg.near_constant):
-                screened[r["dimension"]] = f"near-constant (top value {r['top_share']:.2%})"
+                screened[r["dimension"]] = (f"one value carries {r['top_share']:.2%} of the metric: near-constant, "
+                                            "or derived from the outcome")
         dims = sorted(d for d in dims if d not in screened)
 
         # Stage 1: marginals
@@ -249,6 +275,13 @@ class Crawler:
         self.tables |= self._decompose(raw)
         aliases = self._collapse_aliases(dims)
         dims = sorted(aliases)
+        # Pre-flight: renamed categories and outcome-derived dimensions (rca/preflight.py).
+        check = screen_dimensions(self.tables, dims, self.shape.kind, meta)
+        for d, reason in check.excluded.items():
+            screened[d] = reason
+            self.tables.pop(frozenset({d}), None)
+        dims = [d for d in dims if d not in check.excluded]
+        self.preflight_notes = check.notes
         levels = [{"level": 1, "sets": len(dims), "statements": sl.queries_run - q0}]
 
         nodes1 = []
@@ -370,7 +403,7 @@ class Crawler:
                 if node.keys < s:
                     kids = _match(table, dict(node.cause.dims))
                     if len(kids):
-                        best = max(best, float(kids["surplus"].abs().max()))
+                        best = max(best, float(kids["beam_score"].abs().max()))
             reward[s] = best
         ranked = sorted(sets, key=lambda s: -reward[s])
         keep = max(1, math.ceil(len(ranked) / cfg.halving_eta))

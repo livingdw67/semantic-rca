@@ -27,28 +27,28 @@ Negative shares moved *against* the anomaly: they masked part of it.
 
 | Segment | Why |
 |---|---|
-| channel=email & region=EU | slice of channel=email: the rest of it moves the same way (86% of the per-unit effect) |
-| platform=ios & region=EU | loose superset of country=DE & platform=ios: the rest of it has no significant effect (1% of the per-unit effect) |
-| channel=organic & country=US & platform=ios = channel=organic & platform=ios & region=NA | slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (85% of the per-unit effect) |
-| app_version=ios_7.2 & country=US = app_version=ios_7.2 & region=NA | slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (214% of the per-unit effect) |
-| app_version=android_5.5 & channel=paid_search & country=US = app_version=android_5.5 & channel=paid_search & region=NA | slice of channel=paid_search & country=US & platform=android = channel=paid_search & platform=android & region=NA: the rest of it moves the same way (91% of the per-unit effect) |
+| channel=email & region=EU | slice of channel=email: the rest of it moves the same way (86% of the relative effect) |
+| platform=ios & region=EU | loose superset of country=DE & platform=ios: the rest of it has no significant effect (1% of the relative effect) |
+| channel=organic & country=US & platform=ios = channel=organic & platform=ios & region=NA | slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (85% of the relative effect) |
+| app_version=ios_7.2 & country=US = app_version=ios_7.2 & region=NA | slice of country=US & platform=ios = platform=ios & region=NA: the rest of it moves the same way (214% of the relative effect) |
+| app_version=android_5.5 & channel=paid_search & country=US = app_version=android_5.5 & channel=paid_search & region=NA | slice of channel=paid_search & country=US & platform=android = channel=paid_search & platform=android & region=NA: the rest of it moves the same way (91% of the relative effect) |
 
 ## How this was produced
 
-- **8 warehouse statements** in 20.3s; every one is MetricFlow-compiled SQL (the planner only wraps it with window buckets and GROUPING SETS).
-- 28 dimensions crawled after screening: `sample_bucket` (meta rca: exclude); `is_test_traffic` (near-constant (top value 99.96%)); `landing_page_id` (cardinality 2,500 > 500).
+- **8 warehouse statements** in 19.2s; every one is MetricFlow-compiled SQL (the planner only wraps it with window buckets and GROUPING SETS).
+- 28 dimensions crawled after screening: `sample_bucket` (meta rca: exclude); `checkout_status` (one value carries 100.00% of the metric: near-constant, or derived from the outcome); `is_test_traffic` (one value carries 99.96% of the metric: near-constant, or derived from the outcome); `landing_page_id` (cardinality 2,500 > 500).
 - Aliases collapsed: `country` = `storefront`
 - Expected values for attribution: per-cell forecasts (14/15 cells modelled, rest scaled).
 
 | Statement | Grouping sets | Rows | Seconds |
 |---|---|---|---|
-| stage 0: dimension stats |  | 32 | 0.12 |
-| stage 1: marginals | 29 | 452 | 1.53 |
-| stage 2: level 2 | 48 | 5,356 | 3.52 |
-| stage 2: level 2 | 30 | 906 | 1.73 |
-| stage 2: level 3 | 48 | 24,261 | 5.66 |
-| stage 2: level 3 | 28 | 3,460 | 2.59 |
-| stage 3: flag cube (daily) |  | 6,000 | 0.32 |
+| stage 0: dimension stats |  | 33 | 0.11 |
+| stage 1: marginals | 29 | 452 | 1.45 |
+| stage 2: level 2 | 48 | 5,356 | 3.45 |
+| stage 2: level 2 | 30 | 906 | 1.56 |
+| stage 2: level 3 | 48 | 24,261 | 5.22 |
+| stage 2: level 3 | 28 | 3,460 | 2.47 |
+| stage 3: flag cube (daily) |  | 6,000 | 0.23 |
 
 <details><summary>Stage 1 statement: MetricFlow SQL wrapped in GROUPING SETS</summary>
 
