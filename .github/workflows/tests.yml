@@ -1,0 +1,23 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Generate the synthetic data (seeded, so it matches data/ground_truth.json)
+        run: python scripts/generate_data.py
+      - name: Build the DuckDB warehouse and semantic manifest
+        run: dbt build --profiles-dir .
+      - name: Unit and end-to-end tests against the planted incidents
+        run: python -m pytest -q
