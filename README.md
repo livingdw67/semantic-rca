@@ -147,6 +147,38 @@ Two results worth explaining:
   baseline is the previous four weeks rather than a holiday-aware forecast, and in this synthetic
   data customers aren't tied to one country or channel, so segments overlap heavily.
 
+## Results on random incidents
+
+The showcase dataset was built by hand, so passing it says little about incidents nobody tuned the
+engine for. [`scripts/benchmark.py`](scripts/benchmark.py) draws 30 random scenarios (seed 0): 24
+with one to three incidents on a random segment of platform, country, channel and device, and 6 with
+none, all on top of the same decoys. A cause counts as found only when the exact segment is accepted.
+
+| Metric | Material causes | Found exactly | Near miss | Precision | False alarms, quiet weeks | Right sign | 95% CI covers truth |
+|---|---|---|---|---|---|---|---|
+| `conversion_rate` | 18 | 11 (61%) | 2 | 34% | 0 of 6 | 91% | 82% |
+| `orders` | 25 | 16 (64%) | 2 | 65% | 0 of 6 | 100% | 94% |
+| `revenue` | 25 | 14 (56%) | 1 | 70% | 0 of 6 | 100% | 93% |
+| `revenue_per_session` | 18 | 7 (39%) | 4 | 44% | 0 of 6 | 100% | 100% |
+
+What it says:
+
+- **It doesn't cry wolf.** In the 6 quiet weeks it accepted no cause on any metric. When it names a
+  planted cause, the sign is right 91 to 100% of the time, and for the ratio metrics the mechanism
+  (rate vs mix) is right every time. Its 95% intervals cover the true impact 93 to 100% of the time,
+  except conversion rate (82%).
+- **Recall is the weak spot, and the crawl is why.** It finds 39 to 64% of material causes exactly.
+  Of the 38 cause-metric pairs it doesn't, the crawl never proposed 20, 9 were found as a coarser or
+  finer segment, and 9 were proposed and then rejected. The showcase's 4 of 4 is better than typical.
+- **False causes are small and come with real incidents.** Most are three-way segments of noise
+  dimensions (ad creative, CRM cluster, household size) worth under 1% of the metric, accepted in a
+  week that really did change. Precision is lowest for conversion rate (34%). A minimum effect size
+  for accepting a cause is the next thing to test.
+
+Every miss and false cause is in [`reports/benchmark.md`](reports/benchmark.md). Rerun it from the
+Actions tab (the `benchmark` workflow) or with `python scripts/benchmark.py`; 30 scenarios take
+about 13 minutes on GitHub's runners with `--jobs 2`.
+
 ## Try it
 
 ```powershell
@@ -175,9 +207,10 @@ Example reports, with the statement trace and the wrapped SQL, are in [`reports/
 - Additive metrics take about 20 s locally; count-distinct metrics take 1-1.5 minutes.
 - It can only judge what the crawl proposes. A cause whose dimensions never look suspicious, and
   whose cells sit below the noise floor, won't be found.
-- The results above are for one generated sample. On other samples of the same scenario, the
+- The showcase results are for one generated sample. On other samples of the same scenario, the
   weaker causes (email's mix effect, the offsetting iOS-US effect) can fall below the
-  multiple-testing bar. `scripts/benchmark.py` measures recall across random incidents.
+  multiple-testing bar. On random incidents, recall is 39 to 64%
+  ([Results on random incidents](#results-on-random-incidents)).
 
 ## Project layout
 

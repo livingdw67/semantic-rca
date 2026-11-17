@@ -1,0 +1,30 @@
+name: benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenarios:
+        description: Random scenarios to draw
+        default: "30"
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Benchmark on random planted incidents
+        run: python scripts/benchmark.py --scenarios "${{ inputs.scenarios || '30' }}" --jobs 2
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark
+          path: |
+            reports/benchmark.md
+            reports/benchmark.json
+            bench/
