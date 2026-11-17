@@ -1,5 +1,7 @@
 # semantic-rca: automated root cause analysis on a semantic layer
 
+[![tests](https://github.com/livingdw67/semantic-rca/actions/workflows/tests.yml/badge.svg)](https://github.com/livingdw67/semantic-rca/actions/workflows/tests.yml)
+
 ## Why I built this
 
 Every analyst knows the moment. A KPI drops, someone asks "why?", and the next day disappears into
@@ -149,20 +151,24 @@ Two results worth explaining:
 
 ## Try it
 
-```powershell
+```bash
 python -m venv .venv
-.venv\Scripts\pip install -r requirements.txt
-.venv\Scripts\python scripts\generate_data.py          # ~3.4M sessions, planted incidents + decoys
-.venv\Scripts\dbt build --profiles-dir .               # DuckDB warehouse + semantic manifest + dbt tests
-.venv\Scripts\python -m rca.cli --metric conversion_rate --out reports\conversion_rate.md
+source .venv/bin/activate                              # Windows: .venv\Scripts\activate
+python -m pip install -r requirements.txt
+python scripts/generate_data.py                        # ~3.4M sessions, planted incidents + decoys
+dbt build --profiles-dir .                             # DuckDB warehouse + semantic manifest + dbt tests
+python -m rca.cli --metric conversion_rate --out reports/conversion_rate.md
 ```
 
-```powershell
+```bash
 python -m rca.cli --metric buyer_rate                      # count-distinct ratio (HyperLogLog path)
 python -m rca.cli --metric revenue --json                  # machine-readable summary for alerting bots
 python -m rca.cli --metric conversion_rate --current-end 2026-09-24   # quiet week: no causes
 python -m pytest -q                                        # 47 unit + 18 end-to-end tests (~5 min)
 ```
+
+The same steps, from a fresh checkout through all the tests, run on every push and pull request
+([tests.yml](.github/workflows/tests.yml)).
 
 Example reports, with the statement trace and the wrapped SQL, are in [`reports/`](reports/).
 
