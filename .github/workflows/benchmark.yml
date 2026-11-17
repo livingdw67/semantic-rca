@@ -6,8 +6,6 @@ on:
       scenarios:
         description: Random scenarios to draw
         default: "30"
-  push:
-    branches: [benchmark-results]
 
 jobs:
   benchmark:
